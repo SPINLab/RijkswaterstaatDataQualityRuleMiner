@@ -7,6 +7,7 @@ from rdflib.graph import Literal, URIRef
 
 from dijkstra import shortest_path
 from structures import Clause, GenerationForest, GenerationTree
+from utils import generate_type_map
 
 
 IGNORE_PREDICATES = {RDF.type}
@@ -23,7 +24,7 @@ def generate(g, max_depth, min_support):
 
             for clause in generation_forest.get(ctype, depth):
                 pendant_incidents = {(s, p, o) for s, p, o in clause.body.difference(clause.parent.body)
-                                        if type(o) is URIRef or type(o) is Clause.TypeVariable}
+                                        if type(o) is URIRef or type(o) is Clause.ObjectTypeVariable}
                 derivatives |= explore(g, generation_forest, clause,
                                        pendant_incidents, entity_type_map,
                                        min_support)
@@ -40,8 +41,8 @@ def explore(g, generation_forest, clause, pendant_incidents, entity_type_map, mi
 
         # determine type
         t = None
-        if type(v) is Clause.TypeVariable:
-            t = v.ctype
+        if type(v) is Clause.ObjectTypeVariable:
+            t = v.type
         else:  # if URIRef
             if v not in entity_type_map.keys():
                 continue
@@ -88,13 +89,6 @@ def extend(g, clause, pendant_incident, candidate_extensions, min_support):
                                            {ext for ext in candidate_extensions})
 
     return extended_clauses
-
-def generate_type_map(g):
-    type_map = dict()
-    for e, _, t in g.triples((None, RDF.type, None)):
-        type_map[e] = t
-
-    return type_map
 
 def support_of(g, parent, candidate_extension):
     v, q, w = candidate_extension

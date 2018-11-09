@@ -25,9 +25,10 @@ class Clause():
         return len(self.body)
 
     def __str__(self):
-        return "{:0.3f}: {} <- {{}}".format(self.probability,
+        body_str = "; ".join({"({}, {}, {})".format(s, p, o) for s, p, o in self.body})
+        return "{:0.3f}: {} <- {{{}}}".format(self.probability,
                                        self.head,
-                                       str(self.body))
+                                       body_str)
 
     def __repr__(self):
         return "Clause [{}]".format(str(self))
@@ -41,7 +42,7 @@ class Clause():
             super().__init__()
 
         def __str__(self):
-            return "TYPE ({})".format(self.type)
+            return "TYPE [{}]".format(str(self.type))
 
         def __repr__(self):
             return "TypeVariable [{}]".format(str(self))
@@ -52,7 +53,7 @@ class Clause():
             super().__init__(type)
 
         def __str__(self):
-            return "OBJECT TYPE ({})".format(self.type)
+            return "OBJECT TYPE [{}]".format(str(self.type))
 
         def __repr__(self):
             return "ObjectTypeVariable [{}]".format(str(self))
@@ -63,7 +64,7 @@ class Clause():
             super().__init__(type)
 
         def __str__(self):
-            return "DATA TYPE ({})".format(self.type)
+            return "DATA TYPE ({})".format(str(self.type))
 
         def __repr__(self):
             return "DataTypeVariable [{}]".format(str(self))
