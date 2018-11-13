@@ -7,7 +7,6 @@ from rdflib.graph import Literal, URIRef
 
 from dijkstra import shortest_path
 from structures import Clause, GenerationForest, GenerationTree
-from utils import generate_type_map
 
 
 IGNORE_PREDICATES = {RDF.type}
@@ -16,40 +15,31 @@ IDENTITY = URIRef("local://identity")  # reflexive property
 def generate(g, max_depth, min_support):
     generation_forest = init_generation_forest(g, min_support)
 
-    entity_type_map = generate_type_map(g)
-
     for depth in range(0, max_depth):
         for ctype in generation_forest.types():
             derivatives = set()
 
             for clause in generation_forest.get(ctype, depth):
-                pendant_incidents = {(s, p, o) for s, p, o in clause.body.difference(clause.parent.body)
-                                        if type(o) is URIRef or type(o) is Clause.ObjectTypeVariable}
+                # an attribute of an entity is already implicitly a constraint if
+                # that entity itself is a constraint
+                pendant_incidents = {assertion for assertion in clause.body.difference(clause.parent.body)
+                                        if type(assertion.rhs) is Clause.ObjectTypeVariable}
                 derivatives |= explore(g, generation_forest, clause,
-                                       pendant_incidents, entity_type_map,
-                                       min_support)
+                                       pendant_incidents, min_support)
 
             generation_forest.add(ctype, derivatives, depth+1)
 
     return generation_forest
 
-def explore(g, generation_forest, clause, pendant_incidents, entity_type_map, min_support):
+def explore(g, generation_forest, clause, pendant_incidents, min_support):
     extended_clauses = set()
 
     while len(pendant_incidents) > 0:
-        (u, p, v) = pendant_incidents.pop()
+        assertion = pendant_incidents.pop()
 
-        # determine type
-        t = None
-        if type(v) is Clause.ObjectTypeVariable:
-            t = v.type
-        else:  # if URIRef
-            if v not in entity_type_map.keys():
-                continue
-            t = entity_type_map[v]
-
-        candidate_extensions = generation_forest.get(t, 0)
-        extensions = extend(g, clause, (u, p, v), candidate_extensions,
+        # gather all possible extension for an entity of type t
+        candidate_extensions = generation_forest.get(assertion.rhs.t, 0)
+        extensions = extend(g, clause, assertion, candidate_extensions,
                             min_support)
         extended_clauses |= extensions
 
@@ -68,7 +58,9 @@ def extend(g, clause, pendant_incident, candidate_extensions, min_support):
         support, probability, satisfies_body, satisfies_full = support_of(g, clause, candidate_extension)
         if support >= min_support:
             head = clause.head
-            body = {assertion for assertion in clause.body}.union({candidate_extension})
+            #body = {assertion for assertion in clause.body}.union({candidate_extension})
+            body = clause.body.copy()
+            body.extend(endpoin=pendant_incident, extension=candidate_extension.copy())
 
             if probability <= 0 and probability >= clause.parent.property:
                 # either non-existent or no difference
@@ -155,9 +147,7 @@ def init_generation_forest(g, min_support):
                 predicate_object_map[p][o] = predicate_object_map[p][o] + 1
 
         # create shared variables
-        var = Clause.ObjectTypeVariable(type=t)
         parent = Clause(head=True, body={})
-        body = {(var, IDENTITY, var)}
 
         # generate clauses for each predicate-object pair
         generation_tree = GenerationTree()
@@ -193,8 +183,10 @@ def init_generation_forest(g, min_support):
 
                 # TODO: skip if distribution is (close to) uniform
                 # create new clause
-                phi = Clause(head=(var, p, o),
-                             body=body,
+                var = Clause.ObjectTypeVariable(type=t)
+
+                phi = Clause(head=Clause.Assertion(var, p, o),
+                             body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
                              probability=predicate_object_map[p][o]/support,
                              parent=parent)
 
@@ -209,9 +201,11 @@ def init_generation_forest(g, min_support):
                 if ctype is None:
                     continue
 
+                var = Clause.ObjectTypeVariable(type=t)
                 var_o = Clause.ObjectTypeVariable(type=ctype)
-                phi = Clause(head=(var, p, var_o),
-                             body=body,
+
+                phi = Clause(head=Clause.Assertion(var, p, var_o),
+                             body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
                              probability=freq/support,
                              parent=parent)
 
@@ -226,9 +220,11 @@ def init_generation_forest(g, min_support):
                 if dtype is None:
                     continue
 
+                var = Clause.ObjectTypeVariable(type=t)
                 var_o = Clause.DataTypeVariable(type=dtype)
-                phi = Clause(head=(var, p, var_o),
-                             body=body,
+
+                phi = Clause(head=Clause.Assertion(var, p, var_o),
+                             body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
                              probability=freq/support,
                              parent=parent)
 

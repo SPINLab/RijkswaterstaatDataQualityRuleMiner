@@ -2,6 +2,8 @@
 
 from math import inf
 
+from structures import Clause
+
 
 def shortest_path(source, target, assertions):
     # Dijkstra's shortest path

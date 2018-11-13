@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+from uuid import uuid4
+
 from rdflib.term import Node
 
 
@@ -69,6 +71,77 @@ class Clause():
         def __repr__(self):
             return "DataTypeVariable [{}]".format(str(self))
 
+    class Assertion(tuple):
+        lhs = None
+        predicate = None
+        rhs = None
+        _uuid = None
+
+        def __new__(cls, subject, predicate, object):
+            return super().__new__(cls, (subject, predicate, object))
+
+        def __init__(self, subject, predicate, object, _uuid=None):
+            self.lhs = subject
+            self.predicate = predicate
+            self.rhs = object
+
+            self._uuid = _uuid if _uuid is not None else uuid4()
+
+        def copy(self, reset_uuid=True):
+            copy = Clause.Assertion(self.lhs, self.predicate, self.rhs)
+            if not reset_uuid:
+                copy._uuid = self._uuid
+
+            return copy
+
+        def __hash__(self):
+            return hash("".join([str(self.lhs), str(self.predicate),
+                                 str(self.rhs), str(self._uuid)]))
+
+    class Body():
+        connections = None
+        identity = None
+
+        def __init__(self, identity, connections=None):
+            if not isinstance(identity, Clause.Assertion):
+                raise TypeError()
+
+            if self.connections is None:
+                self.connections = {identity: set()}
+                return
+
+            if identity not in self.connections.keys():
+                self.connections[identity] = set()
+            for assertion in self.connections.keys():
+                for connection in self.connections[assertion]:
+                    if connection not in self.connections.keys():
+                        self.connections[connection] = set()
+
+        def extend(self, endpoint, extension):
+            if not isinstance(endpoint, Clause.Assertion) or\
+               not isinstance(extension, Clause.Assertion):
+                raise TypeError()
+
+            self.connections[endpoint].add(extension)
+            self.connections[extension] = set()
+
+        def copy(self):
+            return Clause.Body(connections={k:{v for v in self.connections[k]} for k in self.connections.keys()},
+                        identity=self.identity)
+
+        def difference(self, other):
+            if not isinstance(other, Clause.Body):
+                raise TypeError()
+
+            return self.connections.keys - other.connections.keys()
+
+        def __repr__(self):
+            return "BODY [{}]".format(str(self))
+
+        def __str__(self):
+            return "{" + "; ".join({str(assertion) for assertion in
+                                    self.connections.keys()}) + "}"
+
 
 class GenerationForest():
     _trees = None
@@ -130,7 +203,7 @@ class GenerationTree():
             self._tree.append(dict())
             self.height += 1
 
-        p = clause.head[1] if predicate is None else predicate # predicate
+        p = clause.head.predicate if predicate is None else predicate # predicate
         if p not in self._tree[depth].keys():
             self._tree[depth][p] = set()
 
