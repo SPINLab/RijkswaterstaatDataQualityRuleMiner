@@ -5,32 +5,37 @@ from collections import Counter
 from rdflib.namespace import RDF, XSD
 from rdflib.graph import Literal, URIRef
 
-from dijkstra import shortest_path
 from structures import Clause, GenerationForest, GenerationTree
+from cache import Cache
+from utils import support_of, confidence_of
 
 
 IGNORE_PREDICATES = {RDF.type}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 def generate(g, max_depth, min_support):
-    generation_forest = init_generation_forest(g, min_support)
+    cache = Cache(g, min_support)
+    generation_forest = init_generation_forest(g, cache.object_type_map, min_support)
 
     for depth in range(0, max_depth):
         for ctype in generation_forest.types():
             derivatives = set()
 
             for clause in generation_forest.get(ctype, depth):
-                # an attribute of an entity is already implicitly a constraint if
-                # that entity itself is a constraint
                 pendant_incidents = {assertion for assertion in clause.body.distances[depth]
                                         if type(assertion.rhs) is Clause.ObjectTypeVariable}
-                derivatives |= explore(g, generation_forest, clause, pendant_incidents, min_support)
+                derivatives |= explore(g,
+                                       generation_forest,
+                                       clause,
+                                       pendant_incidents,
+                                       cache,
+                                       min_support)
 
             generation_forest.add(ctype, derivatives, depth+1)
 
     return generation_forest
 
-def explore(g, generation_forest, clause, pendant_incidents, min_support):
+def explore(g, generation_forest, clause, pendant_incidents, cache, min_support):
     extended_clauses = set()
 
     while len(pendant_incidents) > 0:
@@ -38,27 +43,44 @@ def explore(g, generation_forest, clause, pendant_incidents, min_support):
 
         # gather all possible extensions for an entity of type t
         candidate_extensions = generation_forest.get(assertion.rhs.t, 0)
-        extensions = extend(g, clause, assertion, candidate_extensions, min_support)
+        extensions = extend(g, clause, assertion, candidate_extensions,
+                            cache, min_support)
         extended_clauses |= extensions
 
         for extension in extended_clauses:
             extended_clauses |= explore(g, generation_forest, extension,
-                                        pendant_incidents, min_support)
+                                        pendant_incidents, cache, min_support)
 
     return extended_clauses
 
-def extend(g, clause, pendant_incident, candidate_extensions, min_support):
+def extend(g, clause, pendant_incident, candidate_extensions, cache, min_support):
     extended_clauses = set()
 
     while len(candidate_extensions) > 0:
         candidate_extension = candidate_extensions.pop()
 
+        # create new clause body by extending that of the parent
         body = clause.body.copy()
         body.extend(endpoint=pendant_incident, extension=candidate_extension.copy())
 
-        support, probability, satisfies_body, satisfies_full = support_of(g, clause, candidate_extension)
+        # compute support
+        support, satisfies_body = support_of(cache.predicate_map,
+                                             cache.object_type_map,
+                                             cache.data_types_map,
+                                             body,
+                                             clause._satisfy_body,
+                                             min_support)
         if support >= min_support:
-            if probability <= 0 and probability >= clause.parent.property:
+            # compute confidence
+            confidence, satisfies_full = confidence_of(cache.predicate_map,
+                                                       cache.object_type_map,
+                                                       cache.data_types_map,
+                                                       clause.head,
+                                                       satisfies_body)
+
+            # compute probability
+            probability = confidence / support
+            if probability <= 0 and probability >= clause.parent.probability:
                 # either non-existent or no difference
                 continue
 
@@ -74,63 +96,23 @@ def extend(g, clause, pendant_incident, candidate_extensions, min_support):
 
             for extension in extended_clauses:
                 extended_clauses |= extend(g, extension, candidate_extension,
-                                           {ext for ext in candidate_extensions})
+                                           {ext for ext in candidate_extensions},
+                                           cache,
+                                           min_support)
 
     return extended_clauses
 
-def support_of(g, parent, candidate_extension):
-    v, q, w = candidate_extension
-    _, s, r = parent.head
-
-    satisfies_body = {constraint for constraint in parent._satisfy_body}
-    satisfies_full = {}
-
-    freq = 0
-    constraints = shortest_path(source=parent.head,
-                               target=candidate_extension,
-                               assertions=parent.body)
-    for e in parent._satisfy_body:
-        if not satisfies(g, e, constraints):
-            satisfies_body.discard(e)
-            continue
-
-        # check if also satisfies head
-        if (e, s, r) in g:
-            satisfies_full.add(e)
-            freq += 1
-
-    support = len(satisfies_body)
-
-    return (support, freq/support, satisfies_body, satisfies_full)
-
-def satisfies(g, entity, constraints):
-    for _, p, o in constraints:
-        if (entity, p, o) not in g:
-            return False
-
-        entity = o
-
-    return True
-
-def init_generation_forest(g, min_support):
+def init_generation_forest(g, class_instance_map, min_support):
     generation_forest = GenerationForest()
 
-    # gather all types and their members
-    class_instance_map = dict()
-    for e, _, t in g.triples((None, RDF.type, None)):
-        if t not in class_instance_map.keys():
-            class_instance_map[t] = set()
-
-        class_instance_map[t].add(e)
-
-    for t in class_instance_map.keys():
-        support = len(class_instance_map[t])
+    for t in class_instance_map['type-to-object'].keys():
+        support = len(class_instance_map['type-to-object'][t])
         if support < min_support:
             continue
 
         # gather all predicate-object pairs belonging to the members of a type
         predicate_object_map = dict()
-        for e in class_instance_map[t]:
+        for e in class_instance_map['type-to-object'][t]:
             for _, p, o in g.triples((e, None, None)):
                 if p in IGNORE_PREDICATES:
                     continue
@@ -181,12 +163,12 @@ def init_generation_forest(g, min_support):
                 # TODO: skip if distribution is (close to) uniform
                 # create new clause
                 phi = Clause(head=Clause.Assertion(var, p, o),
-                             body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
+                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
                              probability=predicate_object_map[p][o]/support,
                              parent=parent)
 
-                phi._satisfy_body = class_instance_map[t]
-                phi._satisfy_full = {e for e in class_instance_map[t] if (e, p, o) in g}
+                phi._satisfy_body = class_instance_map['type-to-object'][t]
+                phi._satisfy_full = {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g}
 
                 generation_tree.add(phi, depth=0)
 
@@ -198,11 +180,11 @@ def init_generation_forest(g, min_support):
 
                 var_o = Clause.ObjectTypeVariable(type=ctype)
                 phi = Clause(head=Clause.Assertion(var, p, var_o),
-                             body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
+                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
                              probability=freq/support,
                              parent=parent)
 
-                phi._satisfy_body = class_instance_map[t]
+                phi._satisfy_body = class_instance_map['type-to-object'][t]
                 phi._satisfy_full = object_types_map[ctype]
 
                 generation_tree.add(phi, depth=0)
@@ -215,11 +197,11 @@ def init_generation_forest(g, min_support):
 
                 var_o = Clause.DataTypeVariable(type=dtype)
                 phi = Clause(head=Clause.Assertion(var, p, var_o),
-                             body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
+                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
                              probability=freq/support,
                              parent=parent)
 
-                phi._satisfy_body = class_instance_map[t]
+                phi._satisfy_body = class_instance_map['type-to-object'][t]
                 phi._satisfy_full = data_types_map[dtype]
 
                 generation_tree.add(phi, depth=0)

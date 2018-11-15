@@ -1,6 +1,9 @@
 #! /usr/bin/env python
 
-from rdflib.namespace import RDF, RDFS
+from collections import Counter
+
+from rdflib.graph import Literal
+from rdflib.namespace import RDF, RDFS, XSD
 
 from structures import Clause
 
@@ -12,35 +15,76 @@ def generate_label_map(g):
 
     return label_map
 
-def generate_type_map(g):
-    type_map = dict()
+def generate_data_type_map(g):
+    data_type_map = {'object-to-type': dict(),
+                     'type-to-object': dict()}
+    for o in g.objects():
+        if type(o) is Literal:
+            dtype = o.datatype
+            if dtype is None:
+                dtype = XSD.string if o.language != None else XSD.anyType
+
+            if dtype not in data_type_map.keys():
+                data_type_map['type-to-object'][dtype] = set()
+
+            data_type_map['type-to-object'][dtype].add(o)
+            data_type_map['object-to-type'][o] = dtype
+
+    return data_type_map
+
+def generate_object_type_map(g, min_support):
+    object_type_map = {'object-to-type': dict(),
+                       'type-to-object': dict()}
     for e, _, t in g.triples((None, RDF.type, None)):
-        type_map[e] = t
+        if t not in object_type_map['type-to-object'].keys():
+            object_type_map['type-to-object'][t] = set()
 
-    return type_map
+        object_type_map['type-to-object'][t].add(e)
+        object_type_map['object-to-type'][e] = t
 
-def generate_predicate_map(g, predicates):
+    ## throw away those we won't use to speed up retrieval
+    #discard = set()
+    #for t in object_type_map['type-to-object'].keys():
+    #    support = len(object_type_map['type-to-object'][t])
+    #    if support < min_support:
+    #        discard.add(t)
+
+    #for t in discard:
+    #    for e in object_type_map['type-to-object'].pop(t):
+    #        del object_type_map['object-to-type'][e]
+
+    return object_type_map
+
+def generate_predicate_map(g, min_support):
     predicate_map = dict()
-    for lhs, predicate, rhs in g:
-        if predicate not in predicates:
+
+    predicate_count = Counter(g.predicates())
+    for predicate, freq in predicate_count.items():
+        if freq < min_support:
             continue
 
-        if predicate not in predicate_map.keys():
-            predicate_map[predicate] = {'forwards': dict(), 'backwards': dict()}
+        for lhs, _, rhs in g.triples((None, predicate, None)):
+            if predicate not in predicate_map.keys():
+                predicate_map[predicate] = {'forwards': dict(), 'backwards': dict()}
 
-        if lhs not in predicate_map[predicate]['forwards'].keys():
-            predicate_map[predicate]['forwards'][lhs] = {rhs}
-        else:
-            predicate_map[predicate]['forwards'][lhs].add(rhs)
+            if lhs not in predicate_map[predicate]['forwards'].keys():
+                predicate_map[predicate]['forwards'][lhs] = {rhs}
+            else:
+                predicate_map[predicate]['forwards'][lhs].add(rhs)
 
-        if rhs not in predicate_map[predicate]['backwards'].keys():
-            predicate_map[predicate]['backwards'][rhs] = {lhs}
-        else:
-            predicate_map[predicate]['backwards'][rhs].add(lhs)
+            if rhs not in predicate_map[predicate]['backwards'].keys():
+                predicate_map[predicate]['backwards'][rhs] = {lhs}
+            else:
+                predicate_map[predicate]['backwards'][rhs].add(lhs)
 
     return predicate_map
 
-def confidence(predicate_map,
+def probability(confidence, support):
+    """ Calculate probability of a clause
+    """
+    return confidence / support
+
+def confidence_of(predicate_map,
                object_type_map,
                data_type_map,
                assertion,
@@ -50,28 +94,32 @@ def confidence(predicate_map,
     Assumes that domain satisfies the Clause body that belongs to this head
     """
     confidence = 0
+    assertion_domain_updated = set()
     if not isinstance(assertion.rhs, Clause.TypeVariable):
         # either an entity or literal
         for entity in assertion_domain:
             if assertion.rhs in predicate_map[assertion.predicate]['forward'][entity]:
                 # P(e, u) holds
+                assertion_domain_updated.add(entity)
                 confidence += 1
     elif isinstance(assertion.rhs, Clause.ObjectTypeVariable):
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
                 if object_type_map[resource] is assertion.rhs.type:
                     # P(e, ?) with object type(?, t) holds
+                    assertion_domain_updated.add(entity)
                     confidence += 1
     elif isinstance(assertion.rhs, Clause.DataTypeVariable):
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
                 if data_type_map[resource] == assertion.rhs.type:
                     # P(e, ?) with data type(?, t) holds
+                    assertion_domain_updated.add(entity)
                     confidence += 1
 
-    return confidence
+    return (confidence, assertion_domain_updated)
 
-def support(predicate_map,
+def support_of(predicate_map,
             object_type_map,
             data_type_map,
             graph_pattern,
@@ -140,7 +188,7 @@ def support(predicate_map,
         if len(assertion_range) < min_support:
             return (-1, set())
 
-        support, range_update = support(predicate_map,
+        support, range_update = support_of(predicate_map,
                                         object_type_map,
                                         data_type_map,
                                         graph_pattern,

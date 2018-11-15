@@ -27,10 +27,9 @@ class Clause():
         return len(self.body)
 
     def __str__(self):
-        body_str = "; ".join({"({}, {}, {})".format(s, p, o) for s, p, o in self.body})
         return "{:0.3f}: {} <- {{{}}}".format(self.probability,
-                                       self.head,
-                                       body_str)
+                                       str(self.head),
+                                       str(self.body))
 
     def __repr__(self):
         return "Clause [{}]".format(str(self))
