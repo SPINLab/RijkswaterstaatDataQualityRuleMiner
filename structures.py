@@ -98,24 +98,38 @@ class Clause():
             return hash("".join([str(self.lhs), str(self.predicate),
                                  str(self.rhs), str(self._uuid)]))
 
+    class IdentityAssertion(Assertion):
+        def __new__(cls, subject, predicate, object):
+            return super().__new__(cls, subject, predicate, object)
+
+        def copy(self, reset_uuid=True):
+            copy = Clause.IdentityAssertion(self.lhs, self.predicate, self.rhs)
+            if not reset_uuid:
+                copy._uuid = self._uuid
+
     class Body():
         connections = None
+        distances = None
+        _distances_reverse = None
         identity = None
 
-        def __init__(self, identity, connections=None):
+        def __init__(self, identity, connections=None, distances=None, distances_reverse=None):
             if not isinstance(identity, Clause.Assertion):
                 raise TypeError()
 
+            self.identity = identity
+            self.connections = connections
+            self.distances = distances
+            self._distances_reverse = distances_reverse
+
             if self.connections is None:
                 self.connections = {identity: set()}
+                self.distances = {0: {identity}}
+                self._distances_reverse = {identity: 0}
                 return
 
             if identity not in self.connections.keys():
                 self.connections[identity] = set()
-            for assertion in self.connections.keys():
-                for connection in self.connections[assertion]:
-                    if connection not in self.connections.keys():
-                        self.connections[connection] = set()
 
         def extend(self, endpoint, extension):
             if not isinstance(endpoint, Clause.Assertion) or\
@@ -125,15 +139,17 @@ class Clause():
             self.connections[endpoint].add(extension)
             self.connections[extension] = set()
 
+            distance = self._distances_reverse[endpoint] + 1
+            self._distances_reverse[extension] = distance
+            if distance not in self.distances.keys():
+                self.distances[distance] = set()
+            self.distances[distance].add(extension)
+
         def copy(self):
             return Clause.Body(connections={k:{v for v in self.connections[k]} for k in self.connections.keys()},
-                        identity=self.identity)
-
-        def difference(self, other):
-            if not isinstance(other, Clause.Body):
-                raise TypeError()
-
-            return self.connections.keys - other.connections.keys()
+                               distances={k:{v for v in self.distances[k]} for k in self.distances.keys()},
+                               distances_reverse={k:v for k,v in self._distances_reverse.items()},
+                               identity=self.identity)
 
         def __repr__(self):
             return "BODY [{}]".format(str(self))

@@ -22,10 +22,9 @@ def generate(g, max_depth, min_support):
             for clause in generation_forest.get(ctype, depth):
                 # an attribute of an entity is already implicitly a constraint if
                 # that entity itself is a constraint
-                pendant_incidents = {assertion for assertion in clause.body.difference(clause.parent.body)
+                pendant_incidents = {assertion for assertion in clause.body.distances[depth]
                                         if type(assertion.rhs) is Clause.ObjectTypeVariable}
-                derivatives |= explore(g, generation_forest, clause,
-                                       pendant_incidents, min_support)
+                derivatives |= explore(g, generation_forest, clause, pendant_incidents, min_support)
 
             generation_forest.add(ctype, derivatives, depth+1)
 
@@ -37,10 +36,9 @@ def explore(g, generation_forest, clause, pendant_incidents, min_support):
     while len(pendant_incidents) > 0:
         assertion = pendant_incidents.pop()
 
-        # gather all possible extension for an entity of type t
+        # gather all possible extensions for an entity of type t
         candidate_extensions = generation_forest.get(assertion.rhs.t, 0)
-        extensions = extend(g, clause, assertion, candidate_extensions,
-                            min_support)
+        extensions = extend(g, clause, assertion, candidate_extensions, min_support)
         extended_clauses |= extensions
 
         for extension in extended_clauses:
@@ -55,19 +53,17 @@ def extend(g, clause, pendant_incident, candidate_extensions, min_support):
     while len(candidate_extensions) > 0:
         candidate_extension = candidate_extensions.pop()
 
+        body = clause.body.copy()
+        body.extend(endpoint=pendant_incident, extension=candidate_extension.copy())
+
         support, probability, satisfies_body, satisfies_full = support_of(g, clause, candidate_extension)
         if support >= min_support:
-            head = clause.head
-            #body = {assertion for assertion in clause.body}.union({candidate_extension})
-            body = clause.body.copy()
-            body.extend(endpoin=pendant_incident, extension=candidate_extension.copy())
-
             if probability <= 0 and probability >= clause.parent.property:
                 # either non-existent or no difference
                 continue
 
             # save more constraint clause
-            extension = Clause(head=head,
+            extension = Clause(head=clause.head,
                                body=body,
                                probability=probability,
                                parent=clause)
@@ -148,6 +144,7 @@ def init_generation_forest(g, min_support):
 
         # create shared variables
         parent = Clause(head=True, body={})
+        var = Clause.ObjectTypeVariable(type=t)
 
         # generate clauses for each predicate-object pair
         generation_tree = GenerationTree()
@@ -183,8 +180,6 @@ def init_generation_forest(g, min_support):
 
                 # TODO: skip if distribution is (close to) uniform
                 # create new clause
-                var = Clause.ObjectTypeVariable(type=t)
-
                 phi = Clause(head=Clause.Assertion(var, p, o),
                              body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
                              probability=predicate_object_map[p][o]/support,
@@ -201,9 +196,7 @@ def init_generation_forest(g, min_support):
                 if ctype is None:
                     continue
 
-                var = Clause.ObjectTypeVariable(type=t)
                 var_o = Clause.ObjectTypeVariable(type=ctype)
-
                 phi = Clause(head=Clause.Assertion(var, p, var_o),
                              body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
                              probability=freq/support,
@@ -220,9 +213,7 @@ def init_generation_forest(g, min_support):
                 if dtype is None:
                     continue
 
-                var = Clause.ObjectTypeVariable(type=t)
                 var_o = Clause.DataTypeVariable(type=dtype)
-
                 phi = Clause(head=Clause.Assertion(var, p, var_o),
                              body=Clause.Body(identity=Clause.Assertion(var, IDENTITY, var)),
                              probability=freq/support,
