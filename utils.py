@@ -79,11 +79,6 @@ def generate_predicate_map(g, min_support):
 
     return predicate_map
 
-def probability(confidence, support):
-    """ Calculate probability of a clause
-    """
-    return confidence / support
-
 def confidence_of(predicate_map,
                object_type_map,
                data_type_map,
@@ -98,21 +93,21 @@ def confidence_of(predicate_map,
     if not isinstance(assertion.rhs, Clause.TypeVariable):
         # either an entity or literal
         for entity in assertion_domain:
-            if assertion.rhs in predicate_map[assertion.predicate]['forward'][entity]:
+            if assertion.rhs in predicate_map[assertion.predicate]['forwards'][entity]:
                 # P(e, u) holds
                 assertion_domain_updated.add(entity)
                 confidence += 1
     elif isinstance(assertion.rhs, Clause.ObjectTypeVariable):
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                if object_type_map[resource] is assertion.rhs.type:
+                if object_type_map['object-to-type'][resource] is assertion.rhs.type:
                     # P(e, ?) with object type(?, t) holds
                     assertion_domain_updated.add(entity)
                     confidence += 1
     elif isinstance(assertion.rhs, Clause.DataTypeVariable):
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                if data_type_map[resource] == assertion.rhs.type:
+                if data_type_map['object-to-type'][resource] == assertion.rhs.type:
                     # P(e, ?) with data type(?, t) holds
                     assertion_domain_updated.add(entity)
                     confidence += 1
@@ -143,21 +138,21 @@ def support_of(predicate_map,
         if not isinstance(assertion.rhs, Clause.TypeVariable):
             # either an entity or literal
             for entity in assertion_domain:
-                if assertion.rhs in predicate_map[assertion.predicate]['forward'][entity]:
+                if assertion.rhs in predicate_map[assertion.predicate]['forwards'][entity]:
                     # P(e, u) holds
                     assertion_domain_updated.add(entity)
                     support += 1
         elif isinstance(assertion.rhs, Clause.ObjectTypeVariable):
             for entity in assertion_domain:
                 for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                    if object_type_map[resource] is assertion.rhs.type:
+                    if object_type_map['object-to-type'][resource] is assertion.rhs.type:
                         # P(e, ?) with object type(?, t) holds
                         assertion_domain_updated.add(entity)
                         support += 1
         elif isinstance(assertion.rhs, Clause.DataTypeVariable):
             for entity in assertion_domain:
                 for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                    if data_type_map[resource] == assertion.rhs.type:
+                    if data_type_map['object-to-type'][resource] == assertion.rhs.type:
                         # P(e, ?) with data type(?, t) holds
                         assertion_domain_updated.add(entity)
                         support += 1
@@ -171,7 +166,7 @@ def support_of(predicate_map,
         assertion_range = set()
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                if object_type_map[resource] is assertion.rhs.type:
+                if object_type_map['object-to-type'][resource] is assertion.rhs.type:
                     assertion_range.add(resource)
 
     # update range based on connected assertions' domains (optimization)
@@ -179,7 +174,7 @@ def support_of(predicate_map,
         if len(assertion_range) < min_support:
             return (-1, set())
 
-        assertion_range &= frozenset(predicate_map[connection.predicate]['domain'].keys())
+        assertion_range &= frozenset(predicate_map[connection.predicate]['forwards'].keys())
 
     # update range based on connected assertions' returned updated domains
     # search space is reduced after each returned update
@@ -201,6 +196,9 @@ def support_of(predicate_map,
         assertion_range &= range_update
 
     # update domain based on updated range
+    if isinstance(assertion, Clause.IdentityAssertion):
+        return (len(assertion_range), assertion_range)
+
     support = 0
     assertion_domain_updated = set()
     for resource in assertion_range:

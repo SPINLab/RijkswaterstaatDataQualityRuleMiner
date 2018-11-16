@@ -6,7 +6,13 @@ from rdflib.term import Node
 
 
 class Clause():
-    probability = 0.0  # double
+    domain_probability = 0.0  # probability that an arbitrary member of the
+                              # domain satisfies the head
+    range_probability = 0.0  # probability that an arbitrary member of the
+                             # domain which satisfies the head's predicate also
+                             # satisfies the object in the head
+    support = 0  # number of members which satisfy the body
+    confidence = 0  # number of members who satisfy both body and head
     head = None  # tuple entity (URIRef), predicate (URIRef), entity/literal (RDFNode)
     body = None  # set of triple tuples
     parent = None  # parent Clause instance
@@ -14,10 +20,13 @@ class Clause():
     _satisfy_body = None
     _satisfy_full = None
 
-    def __init__(self, head, body, probability=0.0, parent=None):
+    def __init__(self, head, body, domain_probability=0.0,
+                 range_probability=0.0, confidence=0, support=0, parent=None):
         self.head = head
         self.body = body
-        self.probability = probability
+        self.domain_probability = domain_probability
+        self.range_probability = range_probability
+        self.confidence = confidence
         self.parent = parent
 
         self._satisfy_body = set()
@@ -27,9 +36,13 @@ class Clause():
         return len(self.body)
 
     def __str__(self):
-        return "{:0.3f}: {} <- {{{}}}".format(self.probability,
-                                       str(self.head),
-                                       str(self.body))
+        return "[Pd:{:0.3f}, Pr:{:0.3f}, S:{}, C:{}] {} <- {{{}}}".format(
+            self.domain_probability,
+            self.range_probability,
+            self.support,
+            self.confidence,
+            str(self.head),
+            str(self.body))
 
     def __repr__(self):
         return "Clause [{}]".format(str(self))
@@ -129,6 +142,8 @@ class Clause():
 
             if identity not in self.connections.keys():
                 self.connections[identity] = set()
+                self.distances[0].add(identity)
+                self._distances_reverse[identity] = 0
 
         def extend(self, endpoint, extension):
             if not isinstance(endpoint, Clause.Assertion) or\
