@@ -185,6 +185,12 @@ class GenerationForest():
 
         self._trees[ctype].add(clause, depth)
 
+    def update_tree(self, ctype, clauses, depth):
+        if ctype not in self._trees.keys():
+            raise KeyError()
+
+        self._trees[ctype].update(clauses, depth)
+
     def get(self, ctype, depth):
         if ctype not in self._trees.keys():
             raise KeyError()
@@ -239,6 +245,16 @@ class GenerationTree():
 
         self._tree[depth][p].add(clause)
         self.size += 1
+
+    def update(self, clauses, depth):
+        if depth > self.height:
+            raise IndexError()
+        if self.height <= depth:
+            self._tree.append(dict())
+            self.height += 1
+
+        for clause in clauses:
+            self.add(clause, depth)
 
     def get(self, depth=-1, predicate=None):
         results = set()

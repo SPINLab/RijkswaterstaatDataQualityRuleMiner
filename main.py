@@ -3,7 +3,7 @@
 from collections import Counter
 import logging
 
-from rdflib.namespace import RDF, XSD
+from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
 
 from structures import Clause, GenerationForest, GenerationTree
@@ -11,7 +11,7 @@ from cache import Cache
 from utils import support_of, confidence_of
 
 
-IGNORE_PREDICATES = {RDF.type}
+IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 log = logging.getLogger(__name__)
@@ -39,7 +39,10 @@ def generate(g, max_depth, min_support, min_confidence):
                                        min_support,
                                        min_confidence)
 
-            generation_forest.add(ctype, derivatives, depth+1)
+            log.debug("Adding {} clauses to depth {} of tree {}".format(len(derivatives),
+                                                                        depth+1,
+                                                                        str(ctype)))
+            generation_forest.update_tree(ctype, derivatives, depth+1)
 
     return generation_forest
 
@@ -58,7 +61,7 @@ def explore(g, generation_forest, clause, pendant_incidents, cache, min_support,
                             cache, min_support, min_confidence)
         extended_clauses |= extensions
 
-        for extended_clause in extended_clauses:
+        for extended_clause in extensions:
             extended_clauses |= explore(g, generation_forest, extended_clause,
                                         pendant_incidents, cache, min_support,
                                         min_confidence)
@@ -110,16 +113,17 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
             pfreq = parent.confidence / parent.range_probability
             extented_clause.range_probability = confidence / pfreq
 
+            # save new clause
             extended_clauses.add(extented_clause)
 
-            for extented_clause in extended_clauses:
-                extended_clauses |= extend(g,
-                                           extented_clause,
-                                           pendant_incident,
-                                           {ext for ext in candidate_extensions},
-                                           cache,
-                                           min_support,
-                                           min_confidence)
+            # expand new clause on same depth
+            extended_clauses |= extend(g,
+                                       extented_clause,
+                                       pendant_incident,
+                                       {ext for ext in candidate_extensions},
+                                       cache,
+                                       min_support,
+                                       min_confidence)
 
     return extended_clauses
 
