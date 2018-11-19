@@ -6,6 +6,13 @@ from rdflib.term import Node
 
 
 class Clause():
+    """ Clause class
+
+    A clause consists of a head (Assertion) which holds, with probability Pd and
+    Pr, for all members of a type t if these members satisfy the constraints in
+    the body (Body). Keeps track of its parent and of all members it satisfies
+    for efficient computation of support and confidence.
+    """
     domain_probability = 0.0  # probability that an arbitrary member of the
                               # domain satisfies the head
     range_probability = 0.0  # probability that an arbitrary member of the
@@ -13,8 +20,8 @@ class Clause():
                              # satisfies the object in the head
     support = 0  # number of members which satisfy the body
     confidence = 0  # number of members who satisfy both body and head
-    head = None  # tuple entity (URIRef), predicate (URIRef), entity/literal (RDFNode)
-    body = None  # set of triple tuples
+    head = None  # tuple (variable, predicate (URIRef), entity|literal|variable)
+    body = None  # instance of Clause.Body
     parent = None  # parent Clause instance
 
     _satisfy_body = None
@@ -36,7 +43,7 @@ class Clause():
         return len(self.body)
 
     def __str__(self):
-        return "[Pd:{:0.3f}, Pr:{:0.3f}, S:{}, C:{}] {} <- {{{}}}".format(
+        return "[Pd:{:0.3f}, Pr:{:0.3f}, Supp:{}, Conf:{}] {} <- {{{}}}".format(
             self.domain_probability,
             self.range_probability,
             self.support,
@@ -49,6 +56,11 @@ class Clause():
 
 
     class TypeVariable(Node):
+        """ Type Variable class
+
+        An unbound variable which can take on any value of a certain object or
+        data type resource
+        """
         type = None
 
         def __init__(self, type):
@@ -63,6 +75,11 @@ class Clause():
 
 
     class ObjectTypeVariable(TypeVariable):
+        """ Object Type Variable class
+
+        An unbound variable which can be any member of an object type class
+        (entity)
+        """
         def __init__(self, type):
             super().__init__(type)
 
@@ -74,6 +91,11 @@ class Clause():
 
 
     class DataTypeVariable(TypeVariable):
+        """ Data Type Variable class
+
+        An unbound variable which can take on any value of a data type class
+        (literal)
+        """
         def __init__(self, type):
             super().__init__(type)
 
@@ -84,6 +106,12 @@ class Clause():
             return "DataTypeVariable [{}]".format(str(self))
 
     class Assertion(tuple):
+        """ Assertion class
+
+        Wrapper around tuple (an assertion) that gives each instantiation an
+        unique uuid which allows for comparisons between assertions with the
+        same values. This is needed when either lhs or rhs use TypeVariables.
+        """
         lhs = None
         predicate = None
         rhs = None
@@ -106,11 +134,19 @@ class Clause():
 
             return copy
 
+        def __getnewargs__(self):
+            return (self.lhs, self.predicate, self.rhs)
+
         def __hash__(self):
             return hash("".join([str(self.lhs), str(self.predicate),
                                  str(self.rhs), str(self._uuid)]))
 
     class IdentityAssertion(Assertion):
+        """ Identity Assertion class
+
+        Special class for identity assertion to allow for each recognition and
+        selection.
+        """
         def __new__(cls, subject, predicate, object):
             return super().__new__(cls, subject, predicate, object)
 
@@ -120,6 +156,11 @@ class Clause():
                 copy._uuid = self._uuid
 
     class Body():
+        """ Clause Body class
+
+        Holds all assertions of a clause's body (set of constraints) and keeps
+        track of the connections and distances (from the root) of these assertions.
+        """
         connections = None
         distances = None
         _distances_reverse = None
@@ -174,6 +215,11 @@ class Clause():
 
 
 class GenerationForest():
+    """ Generation Forest class
+
+    Contains one or more generation trees (one per entity type) and serves as a
+    wrapper for tree operations.
+    """
     _trees = None
 
     def __init__(self):
@@ -220,6 +266,13 @@ class GenerationForest():
 
 
 class GenerationTree():
+    """ Generation Tree class
+
+    A mutitree consisting of all clauses that hold for entities of a certain
+    type t. All clauses of depth 0 (body := {type(e, t)}) form the roots of the
+    tree, with each additional depth consisting of one or more constraint
+    clauses that expand their parents' body by one assertion.
+    """
     height = -1  # number of levels
     size = -1  # number of vertices
 

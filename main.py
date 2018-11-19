@@ -17,6 +17,9 @@ IDENTITY = URIRef("local://identity")  # reflexive property
 log = logging.getLogger(__name__)
 
 def generate(g, max_depth, min_support, min_confidence):
+    """ Generate all clauses up to and including a maximum depth which satisfy a minimal
+    support and confidence.
+    """
     cache = Cache(g, min_support)
     generation_forest = init_generation_forest(g, cache.object_type_map,
                                                min_support, min_confidence)
@@ -47,6 +50,9 @@ def generate(g, max_depth, min_support, min_confidence):
     return generation_forest
 
 def explore(g, generation_forest, clause, pendant_incidents, cache, min_support, min_confidence):
+    """ Explore all predicate-object pairs which where added by the previous
+    iteration as possible endpoints to expand from.
+    """
     extended_clauses = set()
 
     while len(pendant_incidents) > 0:
@@ -70,6 +76,10 @@ def explore(g, generation_forest, clause, pendant_incidents, cache, min_support,
 
 def extend(g, parent, pendant_incident, candidate_extensions, cache,
            min_support, min_confidence):
+    """ Extend a clause from a given endpoint variable by evaluating all
+    possible candidate extensions on whether they satisfy the minimal support
+    and confidence.
+    """
     extended_clauses = set()
 
     while len(candidate_extensions) > 0:
@@ -128,6 +138,9 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
     return extended_clauses
 
 def init_generation_forest(g, class_instance_map, min_support, min_confidence):
+    """ Initialize the generation forest by creating all generation trees of
+    types which satisfy minimal support and confidence.
+    """
     log.debug("Initializing Generation Forest")
     generation_forest = GenerationForest()
 
@@ -170,10 +183,11 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
             data_types = list()
             data_types_map = dict()
             for o in predicate_object_map[p].keys():
-                # TODO: allow prior background knowledge
                 # map resources to types for unbound type generation
                 if type(o) is URIRef:
                     ctype = g.value(e, RDF.type)
+                    if ctype is None:
+                        ctype = RDFS.Class
                     object_types.append(ctype)
 
                     if ctype not in object_types_map.keys():
@@ -189,7 +203,6 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                         data_types_map[dtype] = set()
                     data_types_map[dtype].add(o)
 
-                # TODO: skip if distribution is (close to) uniform
                 # create new clause
                 phi = Clause(head=Clause.Assertion(var, p, o),
                              body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),

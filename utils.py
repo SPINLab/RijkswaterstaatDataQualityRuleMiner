@@ -2,7 +2,7 @@
 
 from collections import Counter
 
-from rdflib.graph import Literal
+from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
 from structures import Clause
@@ -19,39 +19,36 @@ def generate_data_type_map(g):
     data_type_map = {'object-to-type': dict(),
                      'type-to-object': dict()}
     for o in g.objects():
-        if type(o) is Literal:
-            dtype = o.datatype
-            if dtype is None:
-                dtype = XSD.string if o.language != None else XSD.anyType
+        if type(o) is not Literal:
+            continue
 
-            if dtype not in data_type_map.keys():
-                data_type_map['type-to-object'][dtype] = set()
+        dtype = o.datatype
+        if dtype is None:
+            dtype = XSD.string if o.language != None else XSD.anyType
 
-            data_type_map['type-to-object'][dtype].add(o)
-            data_type_map['object-to-type'][o] = dtype
+        if dtype not in data_type_map.keys():
+            data_type_map['type-to-object'][dtype] = set()
+
+        data_type_map['type-to-object'][dtype].add(o)
+        data_type_map['object-to-type'][o] = dtype
 
     return data_type_map
 
-def generate_object_type_map(g, min_support):
+def generate_object_type_map(g):
     object_type_map = {'object-to-type': dict(),
                        'type-to-object': dict()}
-    for e, _, t in g.triples((None, RDF.type, None)):
-        if t not in object_type_map['type-to-object'].keys():
-            object_type_map['type-to-object'][t] = set()
+    for e in g.subjects():
+        if type(e) is not URIRef:
+            continue
 
-        object_type_map['type-to-object'][t].add(e)
-        object_type_map['object-to-type'][e] = t
+        ctype = g.value(e, RDF.type)
+        if ctype is None:
+            ctype = RDFS.Class
+        if ctype not in object_type_map['type-to-object'].keys():
+            object_type_map['type-to-object'][ctype] = set()
 
-    ## throw away those we won't use to speed up retrieval
-    #discard = set()
-    #for t in object_type_map['type-to-object'].keys():
-    #    support = len(object_type_map['type-to-object'][t])
-    #    if support < min_support:
-    #        discard.add(t)
-
-    #for t in discard:
-    #    for e in object_type_map['type-to-object'].pop(t):
-    #        del object_type_map['object-to-type'][e]
+        object_type_map['type-to-object'][ctype].add(e)
+        object_type_map['object-to-type'][e] = ctype
 
     return object_type_map
 
