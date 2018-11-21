@@ -20,7 +20,7 @@ def generate(g, max_depth, min_support, min_confidence):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
     """
-    cache = Cache(g, min_support)
+    cache = Cache(g)
     generation_forest = init_generation_forest(g, cache.object_type_map,
                                                min_support, min_confidence)
 
@@ -57,6 +57,9 @@ def explore(g, generation_forest, clause, pendant_incidents, cache, min_support,
 
     while len(pendant_incidents) > 0:
         pendant_incident = pendant_incidents.pop()
+
+        if pendant_incident.rhs.type not in generation_forest.types():
+            continue
 
         # gather all possible extensions for an entity of type t
         candidate_extensions = {clause.head for clause in
@@ -96,7 +99,7 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                              cache.data_type_map,
                                              body,
                                              body.identity,
-                                             parent._satisfy_body,
+                                             {e for e in parent._satisfy_body},
                                              min_support)
         if support >= min_support and not support >= parent.support:
             # compute confidence
@@ -185,7 +188,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
             for o in predicate_object_map[p].keys():
                 # map resources to types for unbound type generation
                 if type(o) is URIRef:
-                    ctype = g.value(e, RDF.type)
+                    ctype = g.value(o, RDF.type)
                     if ctype is None:
                         ctype = RDFS.Class
                     object_types.append(ctype)
@@ -208,7 +211,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                              body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
-                phi._satisfy_body = class_instance_map['type-to-object'][t]
+                phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
                 phi._satisfy_full = {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g}
 
                 phi.support = len(phi._satisfy_body)
@@ -230,8 +233,8 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                              body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
-                phi._satisfy_body = class_instance_map['type-to-object'][t]
-                phi._satisfy_full = object_types_map[ctype]
+                phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
+                phi._satisfy_full = {e for e in object_types_map[ctype]}
 
                 phi.support = len(phi._satisfy_body)
                 phi.confidence = len(phi._satisfy_full)
@@ -252,8 +255,8 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                              body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
-                phi._satisfy_body = class_instance_map['type-to-object'][t]
-                phi._satisfy_full = data_types_map[dtype]
+                phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
+                phi._satisfy_full = {e for e in data_types_map[dtype]}
 
                 phi.support = len(phi._satisfy_body)
                 phi.confidence = len(phi._satisfy_full)

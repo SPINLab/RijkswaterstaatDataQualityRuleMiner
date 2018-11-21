@@ -12,7 +12,8 @@ class Cache():
     object_type_map = None
     data_type_map = None
 
-    def __init__(self, g, min_support):
+    def __init__(self, g):
+        # TODO: compute these more efficient and with less repeation
         self.object_type_map = generate_object_type_map(g)
         self.data_type_map = generate_data_type_map(g)
-        self.predicate_map = generate_predicate_map(g, min_support)
+        self.predicate_map = generate_predicate_map(g)

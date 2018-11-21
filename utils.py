@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from collections import Counter
+from collections import defaultdict
 
 from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
@@ -52,27 +52,28 @@ def generate_object_type_map(g):
 
     return object_type_map
 
-def generate_predicate_map(g, min_support):
+def generate_predicate_map(g):
     predicate_map = dict()
 
-    predicate_count = Counter(g.predicates())
-    for predicate, freq in predicate_count.items():
-        if freq < min_support:
-            continue
+    for lhs, predicate, rhs in g.triples((None, None, None)):
+        if predicate not in predicate_map.keys():
+            predicate_map[predicate] = {'forwards': dict(), 'backwards': dict()}
 
-        for lhs, _, rhs in g.triples((None, predicate, None)):
-            if predicate not in predicate_map.keys():
-                predicate_map[predicate] = {'forwards': dict(), 'backwards': dict()}
+        if lhs not in predicate_map[predicate]['forwards'].keys():
+            predicate_map[predicate]['forwards'][lhs] = {rhs}
+        else:
+            predicate_map[predicate]['forwards'][lhs].add(rhs)
 
-            if lhs not in predicate_map[predicate]['forwards'].keys():
-                predicate_map[predicate]['forwards'][lhs] = {rhs}
-            else:
-                predicate_map[predicate]['forwards'][lhs].add(rhs)
+        if rhs not in predicate_map[predicate]['backwards'].keys():
+            predicate_map[predicate]['backwards'][rhs] = {lhs}
+        else:
+            predicate_map[predicate]['backwards'][rhs].add(lhs)
 
-            if rhs not in predicate_map[predicate]['backwards'].keys():
-                predicate_map[predicate]['backwards'][rhs] = {lhs}
-            else:
-                predicate_map[predicate]['backwards'][rhs].add(lhs)
+    # set default value to empty set
+    for predicate in predicate_map.keys():
+        predicate_map[predicate] = {
+            'forwards': defaultdict(lambda: set(), predicate_map[predicate]['forwards']),
+            'backwards': defaultdict(lambda: set(), predicate_map[predicate]['backwards'])}
 
     return predicate_map
 

@@ -322,7 +322,9 @@ class GenerationTree():
             if depth >= self.height:
                 raise IndexError()
             if predicate is None:
-                results = set.union(*self._tree[depth].values())
+                values = self._tree[depth].values()
+                if len(values) > 0:
+                    results = set.union(*values)
             else:
                 results = self._tree[depth][predicate]
 

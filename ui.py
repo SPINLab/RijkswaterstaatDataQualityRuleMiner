@@ -22,17 +22,19 @@ def prettify(g, clauses):
     return results
 
 def pretty_type(clause, ns_dict, label_dict):
-    return pretty_assertion((clause.body.identity.lhs,
+    type_var = clause.body.identity.lhs  # or rhs
+    return pretty_assertion((type_var,
                              RDF.type,
-                             clause.body.identity.lhs.type),
+                             type_var.type),
                             ns_dict,
                             label_dict,
-                            head=True)
+                            type_var)
 
 def pretty_clause(clause, ns_dict, label_dict):
-    head = pretty_assertion(clause.head, ns_dict, label_dict, head=True)
+    type_var = clause.body.identity.lhs  # or rhs
+    head = pretty_assertion(clause.head, ns_dict, label_dict, type_var)
     body = " {} ".format(_CONJUNCTION).join(
-        [pretty_assertion(assertion, ns_dict, label_dict) for assertion in
+        [pretty_assertion(assertion, ns_dict, label_dict, type_var) for assertion in
          clause.body.connections.keys() if not isinstance(assertion, Clause.IdentityAssertion)])
 
     type = pretty_type(clause, ns_dict, label_dict)
@@ -48,7 +50,7 @@ def pretty_clause(clause, ns_dict, label_dict):
             _LEFTARROW,
             body)
 
-def pretty_assertion(assertion, ns_dict, label_dict, head=False):
+def pretty_assertion(assertion, ns_dict, label_dict, type_var=None):
     assertion_str = "("
     for r in assertion:
         if type(r) is Literal:
@@ -62,10 +64,8 @@ def pretty_assertion(assertion, ns_dict, label_dict, head=False):
             assertion_str += ", "
             continue
         if isinstance(r, Clause.TypeVariable):
-            if head:
-                # assume that the lhs variable is always inspected first
+            if type_var is not None and type_var is r:
                 assertion_str += "[SELF], "
-                head = False
                 continue
 
             assertion_str += pretty_uri(r.type, ns_dict)
