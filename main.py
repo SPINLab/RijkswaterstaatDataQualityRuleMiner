@@ -8,7 +8,8 @@ from rdflib.graph import Literal, URIRef
 
 from structures import Clause, GenerationForest, GenerationTree
 from cache import Cache
-from utils import support_of, confidence_of
+from metrics import support_of, confidence_of
+from utils import predicate_frequency
 
 
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
@@ -38,6 +39,7 @@ def generate(g, max_depth, min_support, min_confidence):
                                        generation_forest,
                                        clause,
                                        pendant_incidents,
+                                       depth,
                                        cache,
                                        min_support,
                                        min_confidence)
@@ -49,7 +51,10 @@ def generate(g, max_depth, min_support, min_confidence):
 
     return generation_forest
 
-def explore(g, generation_forest, clause, pendant_incidents, cache, min_support, min_confidence):
+def explore(g, generation_forest,
+            clause, pendant_incidents,
+            depth, cache, min_support,
+            min_confidence):
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
     """
@@ -62,8 +67,12 @@ def explore(g, generation_forest, clause, pendant_incidents, cache, min_support,
             continue
 
         # gather all possible extensions for an entity of type t
-        candidate_extensions = {clause.head for clause in
+        candidate_extensions = {candidate_clause.head for candidate_clause in
                                 generation_forest.get(pendant_incident.rhs.type, 0)}
+
+        # remove head to prevent tautologies (v <- v)
+        if depth == 0:
+            candidate_extensions.discard(clause.head)
 
         # evaluate all candidate extensions for this depth
         extensions = extend(g, clause, pendant_incident, candidate_extensions,
@@ -72,8 +81,8 @@ def explore(g, generation_forest, clause, pendant_incidents, cache, min_support,
 
         for extended_clause in extensions:
             extended_clauses |= explore(g, generation_forest, extended_clause,
-                                        pendant_incidents, cache, min_support,
-                                        min_confidence)
+                                        pendant_incidents, depth, cache,
+                                        min_support, min_confidence)
 
     return extended_clauses
 
@@ -122,8 +131,9 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
             extented_clause.confidence = confidence
             extented_clause.domain_probability = confidence / support
 
-            # recalculate predicate frequency from parent
-            pfreq = parent.confidence / parent.range_probability
+            pfreq = predicate_frequency(cache.predicate_map,
+                                        head,
+                                        satisfies_body)
             extented_clause.range_probability = confidence / pfreq
 
             # save new clause
@@ -194,8 +204,8 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                     object_types.append(ctype)
 
                     if ctype not in object_types_map.keys():
-                        object_types_map[ctype] = set()
-                    object_types_map[ctype].add(o)
+                        object_types_map[ctype] = list()
+                    object_types_map[ctype].append(o)
                 if type(o) is Literal:
                     dtype = o.datatype
                     if dtype is None:
@@ -203,8 +213,8 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
 
                     data_types.append(dtype)
                     if dtype not in data_types_map.keys():
-                        data_types_map[dtype] = set()
-                    data_types_map[dtype].add(o)
+                        data_types_map[dtype] = list()
+                    data_types_map[dtype].append(o)
 
                 # create new clause
                 phi = Clause(head=Clause.Assertion(var, p, o),

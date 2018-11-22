@@ -64,7 +64,7 @@ def pretty_assertion(assertion, ns_dict, label_dict, type_var=None):
             assertion_str += ", "
             continue
         if isinstance(r, Clause.TypeVariable):
-            if type_var is not None and type_var is r:
+            if type_var is not None and type_var == r:
                 assertion_str += "[SELF], "
                 continue
 

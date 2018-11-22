@@ -67,6 +67,10 @@ class Clause():
             self.type = type
             super().__init__()
 
+        def __eq__(self, other):
+            return isinstance(other, self.__class__.__name__)\
+                    and self.type is other.type
+
         def __str__(self):
             return "TYPE [{}]".format(str(self.type))
 
@@ -138,6 +142,7 @@ class Clause():
             return (self.lhs, self.predicate, self.rhs)
 
         def __hash__(self):
+            # require unique hash to prevent overlapping dictg keys
             return hash("".join([str(self.lhs), str(self.predicate),
                                  str(self.rhs), str(self._uuid)]))
 
