@@ -68,7 +68,7 @@ class Clause():
             super().__init__()
 
         def __eq__(self, other):
-            return isinstance(other, self.__class__.__name__)\
+            return type(self) is type(other)\
                     and self.type is other.type
 
         def __str__(self):
