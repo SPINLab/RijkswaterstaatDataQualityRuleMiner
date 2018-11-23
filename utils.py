@@ -5,15 +5,15 @@ from rdflib.namespace import RDF, RDFS, XSD
 
 
 def generate_label_map(g):
-    label_map = dict()
+    label_map = DictDefault(str())
     for e, _, l in g.triples((None, RDFS.label, None)):
         label_map[e] = l
 
     return label_map
 
 def generate_data_type_map(g):
-    data_type_map = {'object-to-type': dict(),
-                     'type-to-object': dict()}
+    data_type_map = {'object-to-type': DictDefault(None),
+                     'type-to-object': DictDefault(set())}
     for o in g.objects():
         if type(o) is not Literal:
             continue
@@ -31,8 +31,8 @@ def generate_data_type_map(g):
     return data_type_map
 
 def generate_object_type_map(g):
-    object_type_map = {'object-to-type': dict(),
-                       'type-to-object': dict()}
+    object_type_map = {'object-to-type': DictDefault(None),
+                       'type-to-object': DictDefault(set())}
     for e in g.subjects():
         if type(e) is not URIRef:
             continue
