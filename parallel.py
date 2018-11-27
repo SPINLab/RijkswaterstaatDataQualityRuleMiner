@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from collections import Counter
-from multiprocessing import Manager, Process
+from multiprocessing import Manager, Process, JoinableQueue
 import logging
 
 from rdflib.namespace import RDF, RDFS, XSD
@@ -27,9 +27,11 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
 
     for depth in range(0, max_depth):
         log.debug("Generating depth {} / {}".format(depth+1, max_depth))
+        print("Generating depth {} / {}".format(depth+1, max_depth))
         for ctype in generation_forest.types():
+            print(" Type {}".format(ctype))
             with Manager() as manager:
-                jobs = manager.Queue()
+                jobs = JoinableQueue()
                 derivatives = manager.list()
 
                 # populate queue
@@ -48,12 +50,15 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
                                                                   min_confidence)))
 
                 for p in pool:
+                    print("  starting process {}".format(p.name))
                     p.start()
 
                 for p in pool:
                     # need to wait because depth d+1 relies on depth d
+                    print("  joining process {}".format(p.name))
                     p.join()
 
+                print("  Planting tree")
                 generation_forest.update_tree(ctype, set(derivatives), depth+1)
 
                 log.debug("Adding {} clauses to depth {} of tree {}".format(len(derivatives),
@@ -79,6 +84,8 @@ def generate_depth_mp(jobs, results, g, generation_forest, depth, cache,
                                    min_support,
                                    min_confidence)))
 
+        jobs.task_done()
+
 def init_generation_forest_mp(nproc, g, class_instance_map, min_support, min_confidence):
     """ Initialize the generation forest by creating all generation trees of
     types which satisfy minimal support and confidence.
@@ -87,7 +94,7 @@ def init_generation_forest_mp(nproc, g, class_instance_map, min_support, min_con
     generation_forest = GenerationForest()
 
     with Manager() as manager:
-        jobs = manager.Queue()
+        jobs = JoinableQueue()
         results = manager.list()
 
         for t in class_instance_map['type-to-object'].keys():
@@ -119,6 +126,7 @@ def init_generation_tree_mp(jobs, results, g, class_instance_map, min_support, m
         t = jobs.get()
 
         log.debug("Initializing Generation Tree for type {}".format(str(t)))
+        print("Initializing Generation Tree for type {}".format(str(t)))
         # gather all predicate-object pairs belonging to the members of a type
         predicate_object_map = dict()
         for e in class_instance_map['type-to-object'][t]:
@@ -231,3 +239,5 @@ def init_generation_tree_mp(jobs, results, g, class_instance_map, min_support, m
                     generation_tree.add(phi, depth=0)
 
         results.append((t, generation_tree))
+
+        jobs.task_done()
