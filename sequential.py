@@ -6,7 +6,7 @@ import logging
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
 
-from structures import Clause, GenerationForest, GenerationTree
+from structures import Assertion, Clause, ClauseBody, DataTypeVariable, IdentityAssertion, ObjectTypeVariable, GenerationForest, GenerationTree
 from cache import Cache
 from metrics import support_of, confidence_of
 from utils import predicate_frequency
@@ -34,7 +34,7 @@ def generate(g, max_depth, min_support, min_confidence):
                 # only consider unbound object type variables as an extension of
                 # a bound entity is already implicitly included
                 pendant_incidents = {assertion for assertion in clause.body.distances[depth]
-                                        if type(assertion.rhs) is Clause.ObjectTypeVariable}
+                                        if type(assertion.rhs) is ObjectTypeVariable}
                 derivatives |= explore(g,
                                        generation_forest,
                                        clause,
@@ -181,7 +181,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
 
         # create shared variables
         parent = Clause(head=True, body={})
-        var = Clause.ObjectTypeVariable(type=t)
+        var = ObjectTypeVariable(type=t)
 
         # generate clauses for each predicate-object pair
         generation_tree = GenerationTree()
@@ -217,8 +217,8 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                     data_types_map[dtype].append(o)
 
                 # create new clause
-                phi = Clause(head=Clause.Assertion(var, p, o),
-                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
+                phi = Clause(head=Assertion(var, p, o),
+                             body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
@@ -239,8 +239,8 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                     continue
 
                 var_o = Clause.ObjectTypeVariable(type=ctype)
-                phi = Clause(head=Clause.Assertion(var, p, var_o),
-                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
+                phi = Clause(head=Assertion(var, p, var_o),
+                             body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
@@ -260,9 +260,9 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                 if dtype is None:
                     continue
 
-                var_o = Clause.DataTypeVariable(type=dtype)
-                phi = Clause(head=Clause.Assertion(var, p, var_o),
-                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
+                var_o = DataTypeVariable(type=dtype)
+                phi = Clause(head=Assertion(var, p, var_o),
+                             body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}

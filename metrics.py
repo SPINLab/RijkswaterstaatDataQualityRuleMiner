@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from structures import Clause
+from structures import IdentityAssertion, DataTypeVariable, ObjectTypeVariable, TypeVariable
 
 
 def confidence_of(predicate_map,
@@ -14,21 +14,21 @@ def confidence_of(predicate_map,
     """
     confidence = 0
     assertion_domain_updated = set()
-    if not isinstance(assertion.rhs, Clause.TypeVariable):
+    if not isinstance(assertion.rhs, TypeVariable):
         # either an entity or literal
         for entity in assertion_domain:
             if assertion.rhs in predicate_map[assertion.predicate]['forwards'][entity]:
                 # P(e, u) holds
                 assertion_domain_updated.add(entity)
                 confidence += 1
-    elif isinstance(assertion.rhs, Clause.ObjectTypeVariable):
+    elif isinstance(assertion.rhs, ObjectTypeVariable):
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
                 if object_type_map['object-to-type'][resource] is assertion.rhs.type:
                     # P(e, ?) with object type(?, t) holds
                     assertion_domain_updated.add(entity)
                     confidence += 1
-    elif isinstance(assertion.rhs, Clause.DataTypeVariable):
+    elif isinstance(assertion.rhs, DataTypeVariable):
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
                 if data_type_map['object-to-type'][resource] == assertion.rhs.type:
@@ -54,26 +54,26 @@ def support_of(predicate_map,
     """
     # no need to continue if we are a pendant incident (optimization)
     if len(graph_pattern.connections[assertion]) <= 0:
-        if isinstance(assertion, Clause.IdentityAssertion):
+        if isinstance(assertion, IdentityAssertion):
             return (len(assertion_domain), assertion_domain)
 
         support = 0
         assertion_domain_updated = set()
-        if not isinstance(assertion.rhs, Clause.TypeVariable):
+        if not isinstance(assertion.rhs, TypeVariable):
             # either an entity or literal
             for entity in assertion_domain:
                 if assertion.rhs in predicate_map[assertion.predicate]['forwards'][entity]:
                     # P(e, u) holds
                     assertion_domain_updated.add(entity)
                     support += 1
-        elif isinstance(assertion.rhs, Clause.ObjectTypeVariable):
+        elif isinstance(assertion.rhs, ObjectTypeVariable):
             for entity in assertion_domain:
                 for resource in predicate_map[assertion.predicate]['forwards'][entity]:
                     if object_type_map['object-to-type'][resource] is assertion.rhs.type:
                         # P(e, ?) with object type(?, t) holds
                         assertion_domain_updated.add(entity)
                         support += 1
-        elif isinstance(assertion.rhs, Clause.DataTypeVariable):
+        elif isinstance(assertion.rhs, DataTypeVariable):
             for entity in assertion_domain:
                 for resource in predicate_map[assertion.predicate]['forwards'][entity]:
                     if data_type_map['object-to-type'][resource] == assertion.rhs.type:
@@ -84,7 +84,7 @@ def support_of(predicate_map,
         return (support, assertion_domain_updated)
 
     # retrieve range based on assertion's domain
-    if isinstance(assertion, Clause.IdentityAssertion):
+    if isinstance(assertion, IdentityAssertion):
         assertion_range = assertion_domain
     else:  # type is Clause.Assertion with ObjectTypeVariable as rhs
         assertion_range = set()
@@ -120,7 +120,7 @@ def support_of(predicate_map,
         assertion_range &= range_update
 
     # update domain based on updated range
-    if isinstance(assertion, Clause.IdentityAssertion):
+    if isinstance(assertion, IdentityAssertion):
         return (len(assertion_range), assertion_range)
 
     support = 0

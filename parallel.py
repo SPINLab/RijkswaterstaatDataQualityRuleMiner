@@ -7,7 +7,7 @@ import logging
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
 
-from structures import Clause, GenerationForest, GenerationTree
+from structures import Assertion, Clause, ClauseBody, DataTypeVariable, IdentityAssertion, ObjectTypeVariable, GenerationForest, GenerationTree
 from cache import Cache
 from sequential import explore
 
@@ -68,7 +68,7 @@ def generate_depth_mp(jobs, results, g, generation_forest, depth, cache,
         clause = jobs.get()
 
         pendant_incidents = {assertion for assertion in clause.body.distances[depth]
-                                if type(assertion.rhs) is Clause.ObjectTypeVariable}
+                                if type(assertion.rhs) is ObjectTypeVariable}
 
         results.extend(list(explore(g,
                                    generation_forest,
@@ -135,7 +135,7 @@ def init_generation_tree_mp(jobs, results, g, class_instance_map, min_support, m
 
         # create shared variables
         parent = Clause(head=True, body={})
-        var = Clause.ObjectTypeVariable(type=t)
+        var = ObjectTypeVariable(type=t)
 
         # generate clauses for each predicate-object pair
         generation_tree = GenerationTree()
@@ -171,8 +171,8 @@ def init_generation_tree_mp(jobs, results, g, class_instance_map, min_support, m
                     data_types_map[dtype].append(o)
 
                 # create new clause
-                phi = Clause(head=Clause.Assertion(var, p, o),
-                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
+                phi = Clause(head=Assertion(var, p, o),
+                             body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
@@ -192,9 +192,9 @@ def init_generation_tree_mp(jobs, results, g, class_instance_map, min_support, m
                 if ctype is None:
                     continue
 
-                var_o = Clause.ObjectTypeVariable(type=ctype)
-                phi = Clause(head=Clause.Assertion(var, p, var_o),
-                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
+                var_o = ObjectTypeVariable(type=ctype)
+                phi = Clause(head=Assertion(var, p, var_o),
+                             body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
@@ -214,9 +214,9 @@ def init_generation_tree_mp(jobs, results, g, class_instance_map, min_support, m
                 if dtype is None:
                     continue
 
-                var_o = Clause.DataTypeVariable(type=dtype)
-                phi = Clause(head=Clause.Assertion(var, p, var_o),
-                             body=Clause.Body(identity=Clause.IdentityAssertion(var, IDENTITY, var)),
+                var_o = DataTypeVariable(type=dtype)
+                phi = Clause(head=Assertion(var, p, var_o),
+                             body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}

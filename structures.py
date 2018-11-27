@@ -55,168 +55,168 @@ class Clause():
         return "Clause [{}]".format(str(self))
 
 
-    class TypeVariable(Node):
-        """ Type Variable class
+class TypeVariable(Node):
+    """ Type Variable class
 
-        An unbound variable which can take on any value of a certain object or
-        data type resource
-        """
-        type = None
+    An unbound variable which can take on any value of a certain object or
+    data type resource
+    """
+    type = None
 
-        def __init__(self, type):
-            self.type = type
-            super().__init__()
+    def __init__(self, type):
+        self.type = type
+        super().__init__()
 
-        def __eq__(self, other):
-            return type(self) is type(other)\
-                    and self.type is other.type
+    def __eq__(self, other):
+        return type(self) is type(other)\
+                and self.type is other.type
 
-        def __str__(self):
-            return "TYPE [{}]".format(str(self.type))
+    def __str__(self):
+        return "TYPE [{}]".format(str(self.type))
 
-        def __repr__(self):
-            return "TypeVariable [{}]".format(str(self))
-
-
-    class ObjectTypeVariable(TypeVariable):
-        """ Object Type Variable class
-
-        An unbound variable which can be any member of an object type class
-        (entity)
-        """
-        def __init__(self, type):
-            super().__init__(type)
-
-        def __str__(self):
-            return "OBJECT TYPE [{}]".format(str(self.type))
-
-        def __repr__(self):
-            return "ObjectTypeVariable [{}]".format(str(self))
+    def __repr__(self):
+        return "TypeVariable [{}]".format(str(self))
 
 
-    class DataTypeVariable(TypeVariable):
-        """ Data Type Variable class
+class ObjectTypeVariable(TypeVariable):
+    """ Object Type Variable class
 
-        An unbound variable which can take on any value of a data type class
-        (literal)
-        """
-        def __init__(self, type):
-            super().__init__(type)
+    An unbound variable which can be any member of an object type class
+    (entity)
+    """
+    def __init__(self, type):
+        super().__init__(type)
 
-        def __str__(self):
-            return "DATA TYPE ({})".format(str(self.type))
+    def __str__(self):
+        return "OBJECT TYPE [{}]".format(str(self.type))
 
-        def __repr__(self):
-            return "DataTypeVariable [{}]".format(str(self))
+    def __repr__(self):
+        return "ObjectTypeVariable [{}]".format(str(self))
 
-    class Assertion(tuple):
-        """ Assertion class
 
-        Wrapper around tuple (an assertion) that gives each instantiation an
-        unique uuid which allows for comparisons between assertions with the
-        same values. This is needed when either lhs or rhs use TypeVariables.
-        """
-        lhs = None
-        predicate = None
-        rhs = None
-        _uuid = None
+class DataTypeVariable(TypeVariable):
+    """ Data Type Variable class
 
-        def __new__(cls, subject, predicate, object):
-            return super().__new__(cls, (subject, predicate, object))
+    An unbound variable which can take on any value of a data type class
+    (literal)
+    """
+    def __init__(self, type):
+        super().__init__(type)
 
-        def __init__(self, subject, predicate, object, _uuid=None):
-            self.lhs = subject
-            self.predicate = predicate
-            self.rhs = object
+    def __str__(self):
+        return "DATA TYPE ({})".format(str(self.type))
 
-            self._uuid = _uuid if _uuid is not None else uuid4()
+    def __repr__(self):
+        return "DataTypeVariable [{}]".format(str(self))
 
-        def copy(self, reset_uuid=True):
-            copy = Clause.Assertion(self.lhs, self.predicate, self.rhs)
-            if not reset_uuid:
-                copy._uuid = self._uuid
+class Assertion(tuple):
+    """ Assertion class
 
-            return copy
+    Wrapper around tuple (an assertion) that gives each instantiation an
+    unique uuid which allows for comparisons between assertions with the
+    same values. This is needed when either lhs or rhs use TypeVariables.
+    """
+    lhs = None
+    predicate = None
+    rhs = None
+    _uuid = None
 
-        def __getnewargs__(self):
-            return (self.lhs, self.predicate, self.rhs)
+    def __new__(cls, subject, predicate, object):
+        return super().__new__(cls, (subject, predicate, object))
 
-        def __hash__(self):
-            # require unique hash to prevent overlapping dictg keys
-            return hash("".join([str(self.lhs), str(self.predicate),
-                                 str(self.rhs), str(self._uuid)]))
+    def __init__(self, subject, predicate, object, _uuid=None):
+        self.lhs = subject
+        self.predicate = predicate
+        self.rhs = object
 
-    class IdentityAssertion(Assertion):
-        """ Identity Assertion class
+        self._uuid = _uuid if _uuid is not None else uuid4()
 
-        Special class for identity assertion to allow for each recognition and
-        selection.
-        """
-        def __new__(cls, subject, predicate, object):
-            return super().__new__(cls, subject, predicate, object)
+    def copy(self, reset_uuid=True):
+        copy = Assertion(self.lhs, self.predicate, self.rhs)
+        if not reset_uuid:
+            copy._uuid = self._uuid
 
-        def copy(self, reset_uuid=True):
-            copy = Clause.IdentityAssertion(self.lhs, self.predicate, self.rhs)
-            if not reset_uuid:
-                copy._uuid = self._uuid
+        return copy
 
-    class Body():
-        """ Clause Body class
+    def __getnewargs__(self):
+        return (self.lhs, self.predicate, self.rhs)
 
-        Holds all assertions of a clause's body (set of constraints) and keeps
-        track of the connections and distances (from the root) of these assertions.
-        """
-        connections = None
-        distances = None
-        _distances_reverse = None
-        identity = None
+    def __hash__(self):
+        # require unique hash to prevent overlapping dictg keys
+        return hash("".join([str(self.lhs), str(self.predicate),
+                             str(self.rhs), str(self._uuid)]))
 
-        def __init__(self, identity, connections=None, distances=None, distances_reverse=None):
-            if not isinstance(identity, Clause.Assertion):
-                raise TypeError()
+class IdentityAssertion(Assertion):
+    """ Identity Assertion class
 
-            self.identity = identity
-            self.connections = connections
-            self.distances = distances
-            self._distances_reverse = distances_reverse
+    Special class for identity assertion to allow for each recognition and
+    selection.
+    """
+    def __new__(cls, subject, predicate, object):
+        return super().__new__(cls, subject, predicate, object)
 
-            if self.connections is None:
-                self.connections = {identity: set()}
-                self.distances = {0: {identity}}
-                self._distances_reverse = {identity: 0}
-                return
+    def copy(self, reset_uuid=True):
+        copy = IdentityAssertion(self.lhs, self.predicate, self.rhs)
+        if not reset_uuid:
+            copy._uuid = self._uuid
 
-            if identity not in self.connections.keys():
-                self.connections[identity] = set()
-                self.distances[0].add(identity)
-                self._distances_reverse[identity] = 0
+class ClauseBody():
+    """ Clause Body class
 
-        def extend(self, endpoint, extension):
-            if not isinstance(endpoint, Clause.Assertion) or\
-               not isinstance(extension, Clause.Assertion):
-                raise TypeError()
+    Holds all assertions of a clause's body (set of constraints) and keeps
+    track of the connections and distances (from the root) of these assertions.
+    """
+    connections = None
+    distances = None
+    _distances_reverse = None
+    identity = None
 
-            self.connections[endpoint].add(extension)
-            self.connections[extension] = set()
+    def __init__(self, identity, connections=None, distances=None, distances_reverse=None):
+        if not isinstance(identity, Assertion):
+            raise TypeError()
 
-            distance = self._distances_reverse[endpoint] + 1
-            self._distances_reverse[extension] = distance
-            if distance not in self.distances.keys():
-                self.distances[distance] = set()
-            self.distances[distance].add(extension)
+        self.identity = identity
+        self.connections = connections
+        self.distances = distances
+        self._distances_reverse = distances_reverse
 
-        def copy(self):
-            return Clause.Body(connections={k:{v for v in self.connections[k]} for k in self.connections.keys()},
-                               distances={k:{v for v in self.distances[k]} for k in self.distances.keys()},
-                               distances_reverse={k:v for k,v in self._distances_reverse.items()},
-                               identity=self.identity)
+        if self.connections is None:
+            self.connections = {identity: set()}
+            self.distances = {0: {identity}}
+            self._distances_reverse = {identity: 0}
+            return
 
-        def __repr__(self):
-            return "BODY [{}]".format(str(self))
+        if identity not in self.connections.keys():
+            self.connections[identity] = set()
+            self.distances[0].add(identity)
+            self._distances_reverse[identity] = 0
 
-        def __str__(self):
-            return "{" + "; ".join({str(assertion) for assertion in
-                                    self.connections.keys()}) + "}"
+    def extend(self, endpoint, extension):
+        if not isinstance(endpoint, Assertion) or\
+           not isinstance(extension, Assertion):
+            raise TypeError()
+
+        self.connections[endpoint].add(extension)
+        self.connections[extension] = set()
+
+        distance = self._distances_reverse[endpoint] + 1
+        self._distances_reverse[extension] = distance
+        if distance not in self.distances.keys():
+            self.distances[distance] = set()
+        self.distances[distance].add(extension)
+
+    def copy(self):
+        return ClauseBody(connections={k:{v for v in self.connections[k]} for k in self.connections.keys()},
+                           distances={k:{v for v in self.distances[k]} for k in self.distances.keys()},
+                           distances_reverse={k:v for k,v in self._distances_reverse.items()},
+                           identity=self.identity)
+
+    def __repr__(self):
+        return "BODY [{}]".format(str(self))
+
+    def __str__(self):
+        return "{" + "; ".join({str(assertion) for assertion in
+                                self.connections.keys()}) + "}"
 
 
 class GenerationForest():
