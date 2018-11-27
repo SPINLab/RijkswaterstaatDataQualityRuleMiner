@@ -238,7 +238,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                 if ctype is None:
                     continue
 
-                var_o = Clause.ObjectTypeVariable(type=ctype)
+                var_o = ObjectTypeVariable(type=ctype)
                 phi = Clause(head=Assertion(var, p, var_o),
                              body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                              parent=parent)
