@@ -242,7 +242,13 @@ class GenerationForest():
 
         self._trees[ctype].update(clauses, depth)
 
-    def get(self, ctype, depth):
+    def get(self, ctype=None, depth=-1):
+        if ctype is None:
+            for ctype in self._trees.keys():
+                for clause in self._trees[ctype].get(depth):
+                    yield clause
+            return
+
         if ctype not in self._trees.keys():
             raise KeyError()
 
