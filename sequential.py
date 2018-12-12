@@ -204,8 +204,9 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                     object_types.append(ctype)
 
                     if ctype not in object_types_map.keys():
-                        object_types_map[ctype] = list()
-                    object_types_map[ctype].append(o)
+                        object_types_map[ctype] = set()
+                    object_types_map[ctype].update(
+                        {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g})
                 if type(o) is Literal:
                     dtype = o.datatype
                     if dtype is None:
@@ -213,8 +214,9 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
 
                     data_types.append(dtype)
                     if dtype not in data_types_map.keys():
-                        data_types_map[dtype] = list()
-                    data_types_map[dtype].append(o)
+                        data_types_map[dtype] = set()
+                    data_types_map[dtype].update(
+                        {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g})
 
                 # create new clause
                 phi = Clause(head=Assertion(var, p, o),

@@ -71,6 +71,9 @@ class TypeVariable(Node):
         return type(self) is type(other)\
                 and self.type is other.type
 
+    def __hash__(self):
+        return hash(str(self.__class__.__name__)+str(self.type))
+
     def __str__(self):
         return "TYPE [{}]".format(str(self.type))
 
