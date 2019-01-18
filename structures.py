@@ -145,7 +145,7 @@ class Assertion(tuple):
         return (self.lhs, self.predicate, self.rhs)
 
     def __hash__(self):
-        # require unique hash to prevent overlapping dictg keys
+        # require unique hash to prevent overlapping dict keys
         return hash("".join([str(self.lhs), str(self.predicate),
                              str(self.rhs), str(self._uuid)]))
 
@@ -297,50 +297,39 @@ class GenerationTree():
         self.height = 0
         self.size = 0
 
-    def add(self, clause, depth, predicate=None):
+    def add(self, clause, depth):
         if type(clause) is not Clause:
             raise TypeError()
         if depth > self.height:
-            raise IndexError()
+            raise IndexError("Depth exceeds height of tree")
         if self.height <= depth:
-            self._tree.append(dict())
+            self._tree.append(set())
             self.height += 1
 
-        p = clause.head.predicate if predicate is None else predicate # predicate
-        if p not in self._tree[depth].keys():
-            self._tree[depth][p] = set()
-
-        self._tree[depth][p].add(clause)
+        self._tree[depth].add(clause)
         self.size += 1
 
     def update(self, clauses, depth):
+        # redundancy needed for case if len(clauses) == 0
         if depth > self.height:
-            raise IndexError()
+            raise IndexError("Depth exceeds height of tree")
         if self.height <= depth:
-            self._tree.append(dict())
+            self._tree.append(set())
             self.height += 1
 
         for clause in clauses:
             self.add(clause, depth)
 
-    def get(self, depth=-1, predicate=None):
+    def get(self, depth=-1):
         results = set()
         if depth < 0:
-            if predicate is None:
-                results = set.union(*[set.union(*d.values()) for d in self._tree])
-            else:
-                for d in self._tree:
-                    if predicate in self._tree[d].keys():
-                        results |= self._tree[d][predicate]
+            if len(self._tree) > 0:
+                results = set.union(*self._tree)
         else:
             if depth >= self.height:
-                raise IndexError()
-            if predicate is None:
-                values = self._tree[depth].values()
-                if len(values) > 0:
-                    results = set.union(*values)
-            else:
-                results = self._tree[depth][predicate]
+                raise IndexError("Depth exceeds height of tree")
+
+            results = self._tree[depth]
 
         return results
 

@@ -33,23 +33,29 @@ if __name__ == "__main__":
           "conf: "+str(args.min_confidence))
 
     # load graph(s)
-    print("importing graphs... ")
+    print("importing graphs...", end=" ")
     g = Graph()
     for gf in args.input:
         g.parse(gf, format=guess_format(gf))
+    print("done")
 
-    print("computing clauses...")
     # compute clause
     f = generate(g, int(args.max_depth), int(args.min_support), int(args.min_confidence))
 
-    print("storing results...")
+    print("storing results...", end=" ")
     # store clauses
     if args.output == "pkl":
-        pickle.dump(f, open("./generation_forest_{}.pkl".format(timestamp), "wb"))
+        pickle.dump(f, open("./generation_forest(d{}s{}c{})_{}.pkl".format(str(args.max_depth),
+                                                                           str(args.min_support),
+                                                                           str(args.min_confidence),
+                                                                           timestamp), "wb"))
     else:
         ns_dict = {v:k for k,v in g.namespaces()}
         label_dict = generate_label_map(g)
-        with open("./generation_forest_{}.tsv".format(timestamp), "w") as ofile:
+        with open("./generation_forest(d{}s{}c{})_{}.tsv".format(str(args.max_depth),
+                                                                 str(args.min_support),
+                                                                 str(args.min_confidence),
+                                                                 timestamp), "w") as ofile:
             writer = csv.writer(ofile, delimiter="\t")
             writer.writerow(['P_domain', 'P_range', 'Supp', 'Conf', 'Head', 'Body'])
             for c in f.get():

@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 from collections import Counter
-import logging
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
@@ -15,8 +14,6 @@ from utils import predicate_frequency
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-log = logging.getLogger(__name__)
-
 def generate(g, max_depth, min_support, min_confidence):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
@@ -26,8 +23,9 @@ def generate(g, max_depth, min_support, min_confidence):
                                                min_support, min_confidence)
 
     for depth in range(0, max_depth):
-        log.debug("Generating depth {} / {}".format(depth+1, max_depth))
+        print("Generating depth {} / {}".format(depth+1, max_depth))
         for ctype in generation_forest.types():
+            print(" Type {}".format(ctype), end=" ")
             derivatives = set()
 
             for clause in generation_forest.get(ctype, depth):
@@ -44,9 +42,7 @@ def generate(g, max_depth, min_support, min_confidence):
                                        min_support,
                                        min_confidence)
 
-            log.debug("Adding {} clauses to depth {} of tree {}".format(len(derivatives),
-                                                                        depth+1,
-                                                                        str(ctype)))
+            print("(+{} added)".format(len(derivatives)))
             generation_forest.update_tree(ctype, derivatives, depth+1)
 
     return generation_forest
@@ -64,6 +60,7 @@ def explore(g, generation_forest,
         pendant_incident = pendant_incidents.pop()
 
         if pendant_incident.rhs.type not in generation_forest.types():
+            # if the type lacks support, then a clause which uses it will too
             continue
 
         # gather all possible extensions for an entity of type t
@@ -154,7 +151,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
     """ Initialize the generation forest by creating all generation trees of
     types which satisfy minimal support and confidence.
     """
-    log.debug("Initializing Generation Forest")
+    print("Initializing Generation Forest")
     generation_forest = GenerationForest()
 
     for t in class_instance_map['type-to-object'].keys():
@@ -164,7 +161,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
         if support < min_support:
             continue
 
-        log.debug("Initializing Generation Tree for type {}".format(str(t)))
+        print(" Initializing Generation Tree for type {}...".format(str(t)), end=" ")
         # gather all predicate-object pairs belonging to the members of a type
         predicate_object_map = dict()
         for e in class_instance_map['type-to-object'][t]:
@@ -224,7 +221,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
-                phi._satisfy_full = {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g}
+                phi._satisfy_full = {e for e in phi._satisfy_body if (e, p, o) in g}
 
                 phi.support = len(phi._satisfy_body)
                 phi.confidence = len(phi._satisfy_full)
@@ -278,6 +275,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
                 if phi.confidence >= min_confidence:
                     generation_tree.add(phi, depth=0)
 
+        print("done (+{} added)".format(generation_tree.size))
         generation_forest.plant(t, generation_tree)
 
     return generation_forest

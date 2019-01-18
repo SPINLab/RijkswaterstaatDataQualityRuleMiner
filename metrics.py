@@ -24,7 +24,7 @@ def confidence_of(predicate_map,
     elif isinstance(assertion.rhs, ObjectTypeVariable):
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                if object_type_map['object-to-type'][resource] is assertion.rhs.type:
+                if object_type_map['object-to-type'][resource] == assertion.rhs.type:
                     # P(e, ?) with object type(?, t) holds
                     assertion_domain_updated.add(entity)
                     confidence += 1
@@ -69,7 +69,7 @@ def support_of(predicate_map,
         elif isinstance(assertion.rhs, ObjectTypeVariable):
             for entity in assertion_domain:
                 for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                    if object_type_map['object-to-type'][resource] is assertion.rhs.type:
+                    if object_type_map['object-to-type'][resource] == assertion.rhs.type:
                         # P(e, ?) with object type(?, t) holds
                         assertion_domain_updated.add(entity)
                         support += 1

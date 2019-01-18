@@ -3,7 +3,6 @@
 from collections import Counter
 from math import ceil
 from multiprocessing import Pool
-import logging
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
@@ -15,8 +14,6 @@ from sequential import explore
 
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
-
-log = logging.getLogger(__name__)
 
 def generate_mp(nproc, g, max_depth, min_support, min_confidence):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
@@ -30,33 +27,32 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
                                                    min_support, min_confidence)
 
         for depth in range(0, max_depth):
-            log.debug("Generating depth {} / {}".format(depth+1, max_depth))
             print("Generating depth {} / {}".format(depth+1, max_depth))
             for ctype in generation_forest.types():
-                print(" Type {}".format(ctype))
+                print(" Type {}".format(ctype), end=" ")
 
-                clauses = set(generation_forest.get(ctype, depth))
-                if len(clauses) <= 0:
-                    continue
+                # calculate n without storing the whole set in memory
+                nclauses = 0
+                for clause in generation_forest.get(ctype, depth):
+                    nclauses += 1
 
                 derivatives = set()
-                for clause_derivatives in pool.imap_unordered(generate_depth_mp,
-                                                             ((clause,
-                                                               g,
-                                                               generation_forest,
-                                                               depth,
-                                                               cache,
-                                                               min_support,
-                                                               min_confidence) for
-                                                               clause in clauses),
-                                                              chunksize=ceil(len(clauses)/nproc)):
-                    derivatives.update(clause_derivatives)
+                if nclauses >= 1:
+                    for clause_derivatives in pool.imap_unordered(generate_depth_mp,
+                                                                 ((clause,
+                                                                   g,
+                                                                   generation_forest,
+                                                                   depth,
+                                                                   cache,
+                                                                   min_support,
+                                                                   min_confidence) for
+                                                                   clause in generation_forest.get(ctype, depth)),
+                                                                  chunksize=ceil(nclauses/nproc)):
+                        derivatives.update(clause_derivatives)
 
+                print("(+{} added)".format(len(derivatives)))
                 generation_forest.update_tree(ctype, derivatives, depth+1)
 
-                log.debug("Adding {} clauses to depth {} of tree {}".format(len(derivatives),
-                                                                            depth+1,
-                                                                            str(ctype)))
 
     return generation_forest
 
@@ -80,7 +76,6 @@ def init_generation_forest_mp(pool, g, class_instance_map, min_support, min_conf
     types which satisfy minimal support and confidence.
     """
     print("Initializing Generation Forest")
-    log.debug("Initializing Generation Forest")
     generation_forest = GenerationForest()
 
     types = set()
@@ -93,9 +88,9 @@ def init_generation_forest_mp(pool, g, class_instance_map, min_support, min_conf
 
     trees = pool.map(init_generation_tree_mp,
                     ((t,
-                      g, 
+                      g,
                       class_instance_map,
-                      min_support, 
+                      min_support,
                       min_confidence)
                      for t in types))
 
@@ -107,7 +102,6 @@ def init_generation_forest_mp(pool, g, class_instance_map, min_support, min_conf
 def init_generation_tree_mp(inputs):
     t, g, class_instance_map, min_support, min_confidence = inputs
 
-    log.debug(" Initializing Generation Tree for type {}".format(str(t)))
     print("Initializing Generation Tree for type {}".format(str(t)))
     # gather all predicate-object pairs belonging to the members of a type
     predicate_object_map = dict()
