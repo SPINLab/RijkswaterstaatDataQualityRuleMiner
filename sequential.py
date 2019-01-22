@@ -28,11 +28,12 @@ def generate(g, max_depth, min_support, min_confidence):
             print(" Type {}".format(ctype), end=" ")
             derivatives = set()
 
-            for clause in generation_forest.get(ctype, depth):
+            for clause in generation_forest.get_tree(ctype).get(depth):
                 # only consider unbound object type variables as an extension of
                 # a bound entity is already implicitly included
                 pendant_incidents = {assertion for assertion in clause.body.distances[depth]
                                         if type(assertion.rhs) is ObjectTypeVariable}
+
                 derivatives |= explore(g,
                                        generation_forest,
                                        clause,
@@ -65,7 +66,7 @@ def explore(g, generation_forest,
 
         # gather all possible extensions for an entity of type t
         candidate_extensions = {candidate_clause.head for candidate_clause in
-                                generation_forest.get(pendant_incident.rhs.type, 0)}
+                                generation_forest.get_tree(pendant_incident.rhs.type).get(0)}
 
         # remove head to prevent tautologies (v <- v)
         if depth == 0:

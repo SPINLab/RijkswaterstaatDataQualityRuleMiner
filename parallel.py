@@ -23,7 +23,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
     """
     cache = Cache(g)
     with Pool(nproc) as pool:
-        generation_forest = init_generation_forest_mp(pool, g, cache.object_type_map,
+        generation_forest = init_generation_forest_mp(pool, nproc, g, cache.object_type_map,
                                                    min_support, min_confidence)
 
         for depth in range(0, max_depth):
@@ -33,7 +33,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
 
                 # calculate n without storing the whole set in memory
                 nclauses = 0
-                for clause in generation_forest.get(ctype, depth):
+                for clause in generation_forest.get_tree(ctype).get(depth):
                     nclauses += 1
 
                 derivatives = set()
@@ -46,7 +46,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
                                                                    cache,
                                                                    min_support,
                                                                    min_confidence) for
-                                                                   clause in generation_forest.get(ctype, depth)),
+                                                                   clause in generation_forest.get_tree(ctype).get(depth)),
                                                                   chunksize=ceil(nclauses/nproc)):
                         derivatives.update(clause_derivatives)
 
@@ -71,30 +71,37 @@ def generate_depth_mp(inputs):
                    min_confidence)
 
 
-def init_generation_forest_mp(pool, g, class_instance_map, min_support, min_confidence):
+def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support, min_confidence):
     """ Initialize the generation forest by creating all generation trees of
     types which satisfy minimal support and confidence.
     """
     print("Initializing Generation Forest")
     generation_forest = GenerationForest()
 
-    types = set()
+    types = list()
     for t in class_instance_map['type-to-object'].keys():
         # if the number of type instances do not exceed the minimal support then
         # any pattern of this type will not either
         support = len(class_instance_map['type-to-object'][t])
         if support >= min_support:
-            types.add(t)
+            print(" Initializing Generation Tree for type {}...".format(str(t)))
+            types.append(t)
 
-    trees = pool.map(init_generation_tree_mp,
-                    ((t,
-                      g,
-                      class_instance_map,
-                      min_support,
-                      min_confidence)
-                     for t in types))
+    for t, tree in pool.imap_unordered(init_generation_tree_mp,
+                                      ((t,
+                                        g,
+                                        class_instance_map,
+                                        min_support,
+                                        min_confidence) for t in types),
+                                       chunksize=ceil(len(types)/nproc)):
 
-    for t, tree in trees:
+        offset = len(types)-types.index(t)
+        print("\033[F"*offset, end="")
+        print(" Initialized Generation Tree for type {} (+{} added)".format(str(t),
+                                                                            tree.size))
+        if offset-1 > 0:
+            print("\033[E"*(offset-1), end="")
+
         generation_forest.plant(t, tree)
 
     return generation_forest
@@ -102,7 +109,6 @@ def init_generation_forest_mp(pool, g, class_instance_map, min_support, min_conf
 def init_generation_tree_mp(inputs):
     t, g, class_instance_map, min_support, min_confidence = inputs
 
-    print("Initializing Generation Tree for type {}".format(str(t)))
     # gather all predicate-object pairs belonging to the members of a type
     predicate_object_map = dict()
     for e in class_instance_map['type-to-object'][t]:

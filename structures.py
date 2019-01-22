@@ -321,17 +321,16 @@ class GenerationTree():
             self.add(clause, depth)
 
     def get(self, depth=-1):
-        results = set()
         if depth < 0:
             if len(self._tree) > 0:
-                results = set.union(*self._tree)
+                for clause in set.union(*self._tree):
+                    yield clause
         else:
             if depth >= self.height:
                 raise IndexError("Depth exceeds height of tree")
 
-            results = self._tree[depth]
-
-        return results
+            for clause in self._tree[depth]:
+                yield clause
 
     def __len__(self):
         return self.height
