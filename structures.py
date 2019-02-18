@@ -23,6 +23,7 @@ class Clause():
     head = None  # tuple (variable, predicate (URIRef), entity|literal|variable)
     body = None  # instance of Clause.Body
     parent = None  # parent Clause instance
+    children = None  # children Clause instances; used for validation optimization
 
     _satisfy_body = None
     _satisfy_full = None
@@ -35,6 +36,7 @@ class Clause():
         self.range_probability = range_probability
         self.confidence = confidence
         self.parent = parent
+        self.children = set()
 
         self._satisfy_body = set()
         self._satisfy_full = set()
@@ -200,7 +202,7 @@ class ClauseBody():
             raise TypeError()
 
         self.connections[endpoint].add(extension)
-        self.connections[extension] = set()
+        self.connections[extension] = set()  # Assertion instances have unique hashes
 
         distance = self._distances_reverse[endpoint] + 1
         self._distances_reverse[extension] = distance

@@ -134,6 +134,9 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                         satisfies_body)
             extented_clause.range_probability = confidence / pfreq
 
+            # add link for validation optimization
+            parent.children.add(extented_clause)
+
             # save new clause
             extended_clauses.add(extented_clause)
 
@@ -185,7 +188,10 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
         generation_tree = GenerationTree()
         for p in predicate_object_map.keys():
             pfreq = sum(predicate_object_map[p].values())
-            if pfreq < min_support:
+            if pfreq < min_confidence:
+                # if the number of entities of type t that have this predicate
+                # is less than the minimal confidence, then the overall pattern
+                # will have less as well
                 continue
 
             # create clauses for all predicate-object pairs
@@ -275,6 +281,9 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
 
                 if phi.confidence >= min_confidence:
                     generation_tree.add(phi, depth=0)
+
+        if generation_tree.size <= 0:
+            continue
 
         print("done (+{} added)".format(generation_tree.size))
         generation_forest.plant(t, generation_tree)
