@@ -69,6 +69,7 @@ def explore(g, generation_forest,
                                 generation_forest.get_tree(pendant_incident.rhs.type).get(0)}
 
         # remove head to prevent tautologies (v <- v)
+        # TODO: also for (p, type(v))
         if depth == 0:
             candidate_extensions.discard(clause.head)
 
@@ -108,7 +109,7 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                              body.identity,
                                              {e for e in parent._satisfy_body},
                                              min_support)
-        if support >= min_support and not support >= parent.support:
+        if support >= min_support:
             # compute confidence
             confidence, satisfies_full = confidence_of(cache.predicate_map,
                                                        cache.object_type_map,

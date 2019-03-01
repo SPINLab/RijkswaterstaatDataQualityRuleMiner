@@ -40,7 +40,8 @@ def pretty_clause(clause, ns_dict, label_dict):
     type = pretty_type(clause, ns_dict, label_dict)
     body = type if len(body) <= 0 else type + " {} ".format(_CONJUNCTION) + body
 
-    return "Pd: {:0.3f}, Pr: {:0.3f}, Supp: {}, Conf: {}\n{}: {} {} {{{}}}".format(
+    return "d: {}, Pd: {:0.3f}, Pr: {:0.3f}, Supp: {}, Conf: {}\n{}: {} {} {{{}}}".format(
+            max(clause.body.distances.keys()),
             clause.domain_probability,
             clause.range_probability,
             clause.support,

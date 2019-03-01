@@ -62,10 +62,11 @@ if __name__ == "__main__":
                                                                  str(args.min_confidence),
                                                                  timestamp), "w") as ofile:
             writer = csv.writer(ofile, delimiter="\t")
-            writer.writerow(['P_domain', 'P_range', 'Supp', 'Conf', 'Head', 'Body'])
+            writer.writerow(['Depth', 'P_domain', 'P_range', 'Supp', 'Conf', 'Head', 'Body'])
             for c in f.get():
                 bare = pretty_clause(c, ns_dict, label_dict).split("\n"+_PHI+": ")[-1].split(" "+_LEFTARROW+" ")
-                writer.writerow([c.domain_probability, c.range_probability,
+                writer.writerow([max(c.body.distances.keys()),
+                                 c.domain_probability, c.range_probability,
                                  c.support, c.confidence,
                                  bare[0], bare[1]])
 

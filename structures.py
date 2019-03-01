@@ -80,7 +80,8 @@ class TypeVariable(Node):
         return "TYPE [{}]".format(str(self.type))
 
     def __repr__(self):
-        return "TypeVariable [{}]".format(str(self))
+        return "TypeVariable {} [{}]".format(str(id(self)),
+                                             str(self))
 
 
 class ObjectTypeVariable(TypeVariable):
@@ -96,7 +97,8 @@ class ObjectTypeVariable(TypeVariable):
         return "OBJECT TYPE [{}]".format(str(self.type))
 
     def __repr__(self):
-        return "ObjectTypeVariable [{}]".format(str(self))
+        return "ObjectTypeVariable {} [{}]".format(str(id(self)),
+                                                   str(self))
 
 
 class DataTypeVariable(TypeVariable):
