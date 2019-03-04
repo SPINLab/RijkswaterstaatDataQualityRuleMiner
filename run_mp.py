@@ -33,6 +33,8 @@ if __name__ == "__main__":
             required=False, default=1.0)
     parser.add_argument("--p_extend", help="Probability of extending at endpoint",
             required=False, default=1.0)
+    parser.add_argument("--save_min_depth", help="Only save clause of equal or exceeding depth",
+            required=False, default=0)
     args = parser.parse_args()
 
     print("nproc: "+str(args.nproc)+"; "+
@@ -71,8 +73,12 @@ if __name__ == "__main__":
             writer = csv.writer(ofile, delimiter="\t")
             writer.writerow(['Depth', 'P_domain', 'P_range', 'Supp', 'Conf', 'Head', 'Body'])
             for c in f.get():
+                depth = max(c.body.distances.keys())
+                if depth < int(args.save_min_depth):
+                    continue
+
                 bare = pretty_clause(c, ns_dict, label_dict).split("\n"+_PHI+": ")[-1].split(" "+_LEFTARROW+" ")
-                writer.writerow([max(c.body.distances.keys()),
+                writer.writerow([depth,
                                  c.domain_probability, c.range_probability,
                                  c.support, c.confidence,
                                  bare[0], bare[1]])
