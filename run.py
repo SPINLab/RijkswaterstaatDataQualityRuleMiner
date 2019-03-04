@@ -26,11 +26,18 @@ if __name__ == "__main__":
             choices = ["tsv", "pkl"], default="tsv")
     parser.add_argument("-i", "--input", help="One or more RDF-encoded graphs",
             required=True, nargs='+')
+    parser.add_argument("--p_explore", help="Probability of exploring candidate endpoint",
+            required=False, default=1.0)
+    parser.add_argument("--p_extend", help="Probability of extending at endpoint",
+            required=False, default=1.0)
     args = parser.parse_args()
 
     print("depth: "+str(args.max_depth)+"; "+
           "supp: "+str(args.min_support)+"; "+
-          "conf: "+str(args.min_confidence))
+          "conf: "+str(args.min_confidence)+"; "+
+          "p_explore: "+str(args.p_explore)+"; "+
+          "p_extend: "+str(args.p_extend))
+
 
     # load graph(s)
     print("importing graphs...", end=" ")
@@ -40,7 +47,9 @@ if __name__ == "__main__":
     print("done")
 
     # compute clause
-    f = generate(g, int(args.max_depth), int(args.min_support), int(args.min_confidence))
+    f = generate(g, int(args.max_depth),
+                 int(args.min_support), int(args.min_confidence),
+                 float(args.p_explore), float(args.p_extend))
 
     print("storing results...", end=" ")
     # store clauses

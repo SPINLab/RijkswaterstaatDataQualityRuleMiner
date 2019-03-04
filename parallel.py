@@ -15,7 +15,7 @@ from sequential import explore
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-def generate_mp(nproc, g, max_depth, min_support, min_confidence):
+def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_extend):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
 
@@ -45,9 +45,10 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
                                                                    depth,
                                                                    cache,
                                                                    min_support,
-                                                                   min_confidence) for
-                                                                   clause in generation_forest.get_tree(ctype).get(depth)),
-                                                                  chunksize=ceil(nclauses/nproc)):
+                                                                   min_confidence,
+                                                                   p_explore,
+                                                                   p_extend)
+                                for clause in generation_forest.get_tree(ctype).get(depth)), chunksize=ceil(nclauses/nproc)):
                         derivatives.update(clause_derivatives)
 
                 print("(+{} added)".format(len(derivatives)))
@@ -57,7 +58,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence):
     return generation_forest
 
 def generate_depth_mp(inputs):
-    clause, g, generation_forest, depth, cache, min_support, min_confidence = inputs
+    clause, g, generation_forest, depth, cache, min_support, min_confidence, p_explore, p_extend = inputs
     pendant_incidents = {assertion for assertion in clause.body.distances[depth]
                             if type(assertion.rhs) is ObjectTypeVariable}
 
@@ -68,7 +69,9 @@ def generate_depth_mp(inputs):
                    depth,
                    cache,
                    min_support,
-                   min_confidence)
+                   min_confidence,
+                   p_explore,
+                   p_extend)
 
 
 def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support, min_confidence):

@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from collections import Counter
+from random import random
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
@@ -14,7 +15,7 @@ from utils import predicate_frequency
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-def generate(g, max_depth, min_support, min_confidence):
+def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
     """
@@ -41,7 +42,9 @@ def generate(g, max_depth, min_support, min_confidence):
                                        depth,
                                        cache,
                                        min_support,
-                                       min_confidence)
+                                       min_confidence,
+                                       p_explore,
+                                       p_extend)
 
             print("(+{} added)".format(len(derivatives)))
             generation_forest.update_tree(ctype, derivatives, depth+1)
@@ -51,7 +54,8 @@ def generate(g, max_depth, min_support, min_confidence):
 def explore(g, generation_forest,
             clause, pendant_incidents,
             depth, cache, min_support,
-            min_confidence):
+            min_confidence, p_explore,
+            p_extend):
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
     """
@@ -62,6 +66,10 @@ def explore(g, generation_forest,
 
         if pendant_incident.rhs.type not in generation_forest.types():
             # if the type lacks support, then a clause which uses it will too
+            continue
+
+        # skip with probability of (1.0 - p_explore)
+        if p_explore < random():
             continue
 
         # gather all possible extensions for an entity of type t
@@ -75,18 +83,19 @@ def explore(g, generation_forest,
 
         # evaluate all candidate extensions for this depth
         extensions = extend(g, clause, pendant_incident, candidate_extensions,
-                            cache, min_support, min_confidence)
+                            cache, min_support, min_confidence, p_extend)
         extended_clauses |= extensions
 
         for extended_clause in extensions:
             extended_clauses |= explore(g, generation_forest, extended_clause,
                                         pendant_incidents, depth, cache,
-                                        min_support, min_confidence)
+                                        min_support, min_confidence, p_explore,
+                                        p_extend)
 
     return extended_clauses
 
 def extend(g, parent, pendant_incident, candidate_extensions, cache,
-           min_support, min_confidence):
+           min_support, min_confidence, p_extend):
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
@@ -119,6 +128,11 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
             if confidence < min_confidence:
                 continue
 
+            # skip with probability of (1 - p_extend)
+            # place it here as we only want to skip those we are really adding
+            if p_extend < random():
+                continue
+
             # save more constraint clause
             extented_clause = Clause(head=head,
                                      body=body,
@@ -148,7 +162,8 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                        {ext for ext in candidate_extensions},
                                        cache,
                                        min_support,
-                                       min_confidence)
+                                       min_confidence,
+                                       p_extend)
 
     return extended_clauses
 
