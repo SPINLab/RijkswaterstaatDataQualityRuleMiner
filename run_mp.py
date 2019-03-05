@@ -35,6 +35,8 @@ if __name__ == "__main__":
             required=False, default=1.0)
     parser.add_argument("--save_min_depth", help="Only save clause of equal or exceeding depth",
             required=False, default=0)
+    parser.add_argument("--test", help="Dry run without saving results",
+            required=False, action='store_true')
     args = parser.parse_args()
 
     print("nproc: "+str(args.nproc)+"; "+
@@ -55,6 +57,9 @@ if __name__ == "__main__":
     f = generate_mp(int(args.nproc), g, int(args.max_depth),
                  int(args.min_support), int(args.min_confidence),
                  float(args.p_explore), float(args.p_extend))
+
+    if args.test:
+        exit(0)
 
     print("storing results...", end=" ")
     # store clauses

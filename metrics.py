@@ -90,7 +90,8 @@ def support_of(predicate_map,
         assertion_range = set()
         for entity in assertion_domain:
             for resource in predicate_map[assertion.predicate]['forwards'][entity]:
-                if object_type_map['object-to-type'][resource] is assertion.rhs.type:
+                if object_type_map['object-to-type'][resource] == assertion.rhs.type:
+                    # Note: type check requires '==' as ID changes in MP mode
                     assertion_range.add(resource)
 
     # update range based on connected assertions' domains (optimization)

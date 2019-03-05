@@ -48,7 +48,8 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_e
                                                                    min_confidence,
                                                                    p_explore,
                                                                    p_extend)
-                                for clause in generation_forest.get_tree(ctype).get(depth)), chunksize=ceil(nclauses/nproc)):
+                                                                 for clause in generation_forest.get_tree(ctype).get(depth)),
+                                                                 chunksize=ceil(nclauses/nproc)):
                         derivatives.update(clause_derivatives)
 
                 print("(+{} added)".format(len(derivatives)))
