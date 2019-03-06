@@ -9,7 +9,7 @@ from rdflib.graph import Literal, URIRef
 from structures import Assertion, Clause, ClauseBody, DataTypeVariable, IdentityAssertion, ObjectTypeVariable, GenerationForest, GenerationTree
 from cache import Cache
 from metrics import support_of, confidence_of
-from utils import predicate_frequency
+from utils import isEquivalent, predicate_frequency
 
 
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
@@ -76,14 +76,9 @@ def explore(g, generation_forest,
         candidate_extensions = {candidate_clause.head for candidate_clause in
                                 generation_forest.get_tree(pendant_incident.rhs.type).get(0)}
 
-        # remove head to prevent tautologies (v <- v)
-        # TODO: also for (p, type(v))
-        if depth == 0:
-            candidate_extensions.discard(clause.head)
-
         # evaluate all candidate extensions for this depth
         extensions = extend(g, clause, pendant_incident, candidate_extensions,
-                            cache, min_support, min_confidence, p_extend)
+                            cache, depth, min_support, min_confidence, p_extend)
         extended_clauses |= extensions
 
         for extended_clause in extensions:
@@ -95,7 +90,7 @@ def explore(g, generation_forest,
     return extended_clauses
 
 def extend(g, parent, pendant_incident, candidate_extensions, cache,
-           min_support, min_confidence, p_extend):
+           depth, min_support, min_confidence, p_extend):
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
@@ -104,6 +99,21 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
 
     while len(candidate_extensions) > 0:
         candidate_extension = candidate_extensions.pop()
+
+        # omit if candidate for level 0 is equivalent to head
+        if depth == 0 and isEquivalent(parent.head, candidate_extension, cache):
+            continue
+
+        # omit equivalents on same context level (exact or by type)
+        if depth+1 in parent.body.distances.keys():
+            equivalent = False
+            for assertion in parent.body.distances[depth+1]:
+                if isEquivalent(assertion, candidate_extension, cache):
+                    equivalent = True
+                    break
+
+            if equivalent:
+                continue
 
         # create new clause body by extending that of the parent
         head = parent.head
@@ -161,6 +171,7 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                        pendant_incident,
                                        {ext for ext in candidate_extensions},
                                        cache,
+                                       depth,
                                        min_support,
                                        min_confidence,
                                        p_extend)

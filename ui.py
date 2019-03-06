@@ -35,7 +35,7 @@ def pretty_clause(clause, ns_dict, label_dict):
     head = pretty_assertion(clause.head, ns_dict, label_dict, type_var)
     body = " {} ".format(_CONJUNCTION).join(
         [pretty_assertion(assertion, ns_dict, label_dict, type_var) for assertion in
-         clause.body.connections.keys() if not isinstance(assertion, IdentityAssertion)])
+         sorted(clause.body.connections.keys()) if not isinstance(assertion, IdentityAssertion)])
 
     type = pretty_type(clause, ns_dict, label_dict)
     body = type if len(body) <= 0 else type + " {} ".format(_CONJUNCTION) + body

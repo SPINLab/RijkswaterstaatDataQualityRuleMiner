@@ -73,6 +73,9 @@ class TypeVariable(Node):
         return type(self) is type(other)\
                 and self.type is other.type
 
+    def __lt__(self, other):
+        return self.type < other.type
+
     def __hash__(self):
         return hash(str(self.__class__.__name__)+str(self.type))
 
@@ -218,12 +221,20 @@ class ClauseBody():
                            distances_reverse={k:v for k,v in self._distances_reverse.items()},
                            identity=self.identity)
 
+    def __hash__(self):
+        # order invariant
+        value = str(self.__class__.__name__) + str(self.identity) + str(self) +\
+                "".join([str(k)+"".join(["".join(v) for v in sorted(self.distances[k])])
+                         for k in sorted(self.distances.keys())])
+
+        return hash(value)
+
     def __repr__(self):
         return "BODY [{}]".format(str(self))
 
     def __str__(self):
-        return "{" + "; ".join({str(assertion) for assertion in
-                                self.connections.keys()}) + "}"
+        return "{" + "; ".join([str(assertion) for assertion in
+                                sorted(self.connections.keys())]) + "}"
 
 
 class GenerationForest():

@@ -3,6 +3,8 @@
 from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
+from structures import TypeVariable, DataTypeVariable, ObjectTypeVariable
+
 
 def generate_label_map(g):
     label_map = DictDefault(str())
@@ -90,3 +92,34 @@ class DictDefault(dict):
 
     def __missing__(self, key):
         return self._default
+
+def isEquivalent(assertionA, assertionB, cache):
+    if (not (isinstance(assertionA.lhs, ObjectTypeVariable) and\
+             isinstance(assertionB.lhs, ObjectTypeVariable) and\
+             assertionA.lhs.type == assertionB.lhs.type)) or\
+       assertionA.predicate != assertionB.predicate:
+        return False
+
+    # rhs is the same resource, or same type var, 
+    # or one is a instance of the other's type var
+    return (assertionA.rhs == assertionB.rhs or\
+            (isinstance(assertionA.rhs, TypeVariable) and\
+             isinstance(assertionB.rhs, TypeVariable) and\
+             assertionA.rhs.type == assertionB.rhs.type) or\
+            isSameType(assertionA.rhs, assertionB.rhs, cache) or\
+            isSameType(assertionB.rhs, assertionA.rhs, cache))
+
+def isSameType(resourceA, resourceB, cache):
+    if isinstance(resourceA, ObjectTypeVariable):
+        if (type(resourceB) is URIRef and\
+            resourceB in cache.object_type_map['object-to-type'].keys() and\
+            resourceA.type == cache.object_type_map['object-to-type'][resourceB]):
+            return True
+
+    if isinstance(resourceA, DataTypeVariable):
+        if (type(resourceB) is Literal and\
+            resourceB in cache.data_type_map['object-to-type'].keys() and\
+            resourceA.type == cache.data_type_map['object-to-type'][resourceB]):
+            return True
+
+    return False
