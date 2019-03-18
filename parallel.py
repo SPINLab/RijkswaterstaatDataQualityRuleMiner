@@ -38,6 +38,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_e
 
                 derivatives = set()
                 if nclauses >= 1:
+                    chunksize = ceil(nclauses/nproc)
                     for clause_derivatives in pool.imap_unordered(generate_depth_mp,
                                                                  ((clause,
                                                                    g,
@@ -49,7 +50,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_e
                                                                    p_explore,
                                                                    p_extend)
                                                                  for clause in generation_forest.get_tree(ctype).get(depth)),
-                                                                 chunksize=ceil(nclauses/nproc)):
+                                                                 chunksize=chunksize if chunksize > 1 else 2):
                         derivatives.update(clause_derivatives)
 
                 print("(+{} added)".format(len(derivatives)))
@@ -91,13 +92,14 @@ def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support, m
             print(" Initializing Generation Tree for type {}...".format(str(t)))
             types.append(t)
 
+    chunksize = ceil(len(types)/nproc)
     for t, tree in pool.imap_unordered(init_generation_tree_mp,
                                       ((t,
                                         g,
                                         class_instance_map,
                                         min_support,
                                         min_confidence) for t in types),
-                                       chunksize=ceil(len(types)/nproc)):
+                                       chunksize=chunksize if chunksize > 1 else 2):
 
         offset = len(types)-types.index(t)
         print("\033[F"*offset, end="")
