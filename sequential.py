@@ -60,10 +60,9 @@ def explore(g, generation_forest,
     iteration as possible endpoints to expand from.
     """
     extended_clauses = set()
-
-    while len(pendant_incidents) > 0:
-        pendant_incident = pendant_incidents.pop()
-
+    clause_incident_map = dict()
+    unsupported_incidents = set()
+    for pendant_incident in pendant_incidents:
         if pendant_incident.rhs.type not in generation_forest.types():
             # if the type lacks support, then a clause which uses it will too
             continue
@@ -79,13 +78,27 @@ def explore(g, generation_forest,
         # evaluate all candidate extensions for this depth
         extensions = extend(g, clause, pendant_incident, candidate_extensions,
                             cache, depth, min_support, min_confidence, p_extend)
-        extended_clauses |= extensions
 
-        for extended_clause in extensions:
-            extended_clauses |= explore(g, generation_forest, extended_clause,
-                                        pendant_incidents, depth, cache,
-                                        min_support, min_confidence, p_explore,
-                                        p_extend)
+        if len(extensions) <= 0:
+            unsupported_incidents.add(pendant_incident)
+            continue
+
+        extended_clauses |= extensions
+        for extended_clause in extended_clauses:
+            # remember which incident was explored (optimization)
+            clause_incident_map[extended_clause] = pendant_incident
+
+    # prune step (future recursions will not explore these)
+    pendant_incidents -= unsupported_incidents
+
+    for extended_clause in {ext for ext in extended_clauses}:
+        # rmv corresponding extension to avoid duplicates in recursions
+        pendant_incidents.discard(clause_incident_map[extended_clause])
+
+        extended_clauses |= explore(g, generation_forest, extended_clause,
+                                    {pi for pi in pendant_incidents}, depth, cache,
+                                    min_support, min_confidence, p_explore,
+                                    p_extend)
 
     return extended_clauses
 
@@ -96,9 +109,9 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
     and confidence.
     """
     extended_clauses = set()
-
-    while len(candidate_extensions) > 0:
-        candidate_extension = candidate_extensions.pop()
+    clause_extension_map = dict()
+    unsupported_extensions = set()
+    for candidate_extension in candidate_extensions:
 
         # omit if candidate for level 0 is equivalent to head
         if depth == 0 and isEquivalent(parent.head, candidate_extension, cache):
@@ -128,53 +141,68 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                              body.identity,
                                              {e for e in parent._satisfy_body},
                                              min_support)
-        if support >= min_support:
-            # compute confidence
-            confidence, satisfies_full = confidence_of(cache.predicate_map,
-                                                       cache.object_type_map,
-                                                       cache.data_type_map,
-                                                       head,
-                                                       satisfies_body)
-            if confidence < min_confidence:
-                continue
 
-            # skip with probability of (1 - p_extend)
-            # place it here as we only want to skip those we are really adding
-            if p_extend < random():
-                continue
+        if support < min_support:
+            unsupported_extensions.add(candidate_extension)
+            continue
 
-            # save more constraint clause
-            extented_clause = Clause(head=head,
-                                     body=body,
-                                     parent=parent)
-            extented_clause._satisfy_body = satisfies_body
-            extented_clause._satisfy_full = satisfies_full
+        # compute confidence
+        confidence, satisfies_full = confidence_of(cache.predicate_map,
+                                                   cache.object_type_map,
+                                                   cache.data_type_map,
+                                                   head,
+                                                   satisfies_body)
+        if confidence < min_confidence:
+            unsupported_extensions.add(candidate_extension)
+            continue
 
-            extented_clause.support = support
-            extented_clause.confidence = confidence
-            extented_clause.domain_probability = confidence / support
+        # skip with probability of (1 - p_extend)
+        # place it here as we only want to skip those we are really adding
+        if p_extend < random():
+            continue
 
-            pfreq = predicate_frequency(cache.predicate_map,
-                                        head,
-                                        satisfies_body)
-            extented_clause.range_probability = confidence / pfreq
+        # save more constraint clause
+        extended_clause = Clause(head=head,
+                                 body=body,
+                                 parent=parent)
+        extended_clause._satisfy_body = satisfies_body
+        extended_clause._satisfy_full = satisfies_full
 
-            # add link for validation optimization
-            parent.children.add(extented_clause)
+        extended_clause.support = support
+        extended_clause.confidence = confidence
+        extended_clause.domain_probability = confidence / support
 
-            # save new clause
-            extended_clauses.add(extented_clause)
+        pfreq = predicate_frequency(cache.predicate_map,
+                                    head,
+                                    satisfies_body)
+        extended_clause.range_probability = confidence / pfreq
 
-            # expand new clause on same depth
-            extended_clauses |= extend(g,
-                                       extented_clause,
-                                       pendant_incident,
-                                       {ext for ext in candidate_extensions},
-                                       cache,
-                                       depth,
-                                       min_support,
-                                       min_confidence,
-                                       p_extend)
+        # remember which extension was added (optimization)
+        clause_extension_map[extended_clause] = candidate_extension
+
+        # add link for validation optimization
+        parent.children.add(extended_clause)
+
+        # save new clause
+        extended_clauses.add(extended_clause)
+
+    # pruning step (future recursions will not evaluate these)
+    candidate_extensions -= unsupported_extensions
+
+    for extended_clause in {extcl for extcl in extended_clauses}:
+        # rmv corresponding extension to avoid duplicates in recursions
+        candidate_extensions.discard(clause_extension_map[extended_clause])
+
+        # expand new clause on same depth
+        extended_clauses |= extend(g,
+                                   extended_clause,
+                                   pendant_incident,
+                                   {cext for cext in candidate_extensions},
+                                   cache,
+                                   depth,
+                                   min_support,
+                                   min_confidence,
+                                   p_extend)
 
     return extended_clauses
 
