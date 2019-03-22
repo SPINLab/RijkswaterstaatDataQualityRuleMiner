@@ -3,6 +3,7 @@
 from collections import Counter
 from math import ceil
 from multiprocessing import Pool
+from time import process_time
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
@@ -26,10 +27,11 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_e
         generation_forest = init_generation_forest_mp(pool, nproc, g, cache.object_type_map,
                                                    min_support, min_confidence)
 
+        t0 = process_time()
         for depth in range(0, max_depth):
-            print("Generating depth {} / {}".format(depth+1, max_depth))
+            print("generating depth {} / {}".format(depth+1, max_depth))
             for ctype in generation_forest.types():
-                print(" Type {}".format(ctype), end=" ")
+                print(" type {}".format(ctype), end=" ")
 
                 # calculate n without storing the whole set in memory
                 nclauses = 0
@@ -56,6 +58,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_e
                 print("(+{} added)".format(len(derivatives)))
                 generation_forest.update_tree(ctype, derivatives, depth+1)
 
+        print('completed in {:0.3f}s'.format(process_time()-t0))
 
     return generation_forest
 
@@ -80,7 +83,7 @@ def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support, m
     """ Initialize the generation forest by creating all generation trees of
     types which satisfy minimal support and confidence.
     """
-    print("Initializing Generation Forest")
+    print("initializing Generation Forest")
     generation_forest = GenerationForest()
 
     types = list()
@@ -89,7 +92,7 @@ def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support, m
         # any pattern of this type will not either
         support = len(class_instance_map['type-to-object'][t])
         if support >= min_support:
-            print(" Initializing Generation Tree for type {}...".format(str(t)))
+            print(" initializing Generation Tree for type {}...".format(str(t)))
             types.append(t)
 
     chunksize = ceil(len(types)/nproc)
@@ -103,7 +106,7 @@ def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support, m
 
         offset = len(types)-types.index(t)
         print("\033[F"*offset, end="")
-        print(" Initialized Generation Tree for type {} (+{} added)".format(str(t),
+        print(" initialized Generation Tree for type {} (+{} added)".format(str(t),
                                                                             tree.size))
         if offset-1 > 0:
             print("\033[E"*(offset-1), end="")

@@ -2,6 +2,7 @@
 
 from collections import Counter
 from random import random
+from time import process_time
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
@@ -23,10 +24,11 @@ def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend):
     generation_forest = init_generation_forest(g, cache.object_type_map,
                                                min_support, min_confidence)
 
+    t0 = process_time()
     for depth in range(0, max_depth):
-        print("Generating depth {} / {}".format(depth+1, max_depth))
+        print("generating depth {} / {}".format(depth+1, max_depth))
         for ctype in generation_forest.types():
-            print(" Type {}".format(ctype), end=" ")
+            print(" type {}".format(ctype), end=" ")
             derivatives = set()
 
             for clause in generation_forest.get_tree(ctype).get(depth):
@@ -48,6 +50,8 @@ def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend):
 
             print("(+{} added)".format(len(derivatives)))
             generation_forest.update_tree(ctype, derivatives, depth+1)
+
+    print('completed in {:0.3f}s'.format(process_time()-t0))
 
     return generation_forest
 
@@ -210,7 +214,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
     """ Initialize the generation forest by creating all generation trees of
     types which satisfy minimal support and confidence.
     """
-    print("Initializing Generation Forest")
+    print("initializing Generation Forest")
     generation_forest = GenerationForest()
 
     for t in class_instance_map['type-to-object'].keys():
@@ -220,7 +224,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence):
         if support < min_support:
             continue
 
-        print(" Initializing Generation Tree for type {}...".format(str(t)), end=" ")
+        print(" initializing Generation Tree for type {}...".format(str(t)), end=" ")
         # gather all predicate-object pairs belonging to the members of a type
         predicate_object_map = dict()
         for e in class_instance_map['type-to-object'][t]:
