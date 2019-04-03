@@ -33,6 +33,8 @@ if __name__ == "__main__":
             required=False, default=1.0)
     parser.add_argument("--p_extend", help="Probability of extending at endpoint",
             required=False, default=1.0)
+    parser.add_argument("--valopt", help="Prepare output for validation (only relevant to pkl)",
+            required=False, action='store_true')
     parser.add_argument("--test", help="Dry run without saving results",
             required=False, action='store_true')
     args = parser.parse_args()
@@ -51,10 +53,15 @@ if __name__ == "__main__":
         g.parse(gf, format=guess_format(gf))
     print("done")
 
+    # only makes sense when using pkl output
+    if args.output != "pkl":
+        args.valopt = False
+
     # compute clauses
     f = generate_mp(int(args.nproc), g, int(args.max_depth),
-                 int(args.min_support), int(args.min_confidence),
-                 float(args.p_explore), float(args.p_extend))
+                   int(args.min_support), int(args.min_confidence),
+                   float(args.p_explore), float(args.p_extend),
+                   args.valopt)
 
     if args.test:
         exit(0)

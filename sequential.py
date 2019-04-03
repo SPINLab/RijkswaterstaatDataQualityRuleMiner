@@ -16,7 +16,7 @@ from utils import isEquivalent, predicate_frequency
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend):
+def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend, valprep):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
     """
@@ -46,7 +46,8 @@ def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend):
                                        min_support,
                                        min_confidence,
                                        p_explore,
-                                       p_extend)
+                                       p_extend,
+                                       valprep)
 
             print("(+{} added)".format(len(derivatives)))
             generation_forest.update_tree(ctype, derivatives, depth+1)
@@ -59,7 +60,7 @@ def explore(g, generation_forest,
             clause, pendant_incidents,
             depth, cache, min_support,
             min_confidence, p_explore,
-            p_extend):
+            p_extend, valprep):
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
     """
@@ -81,7 +82,8 @@ def explore(g, generation_forest,
 
         # evaluate all candidate extensions for this depth
         extensions = extend(g, clause, pendant_incident, candidate_extensions,
-                            cache, depth, min_support, min_confidence, p_extend)
+                            cache, depth, min_support, min_confidence, p_extend,
+                            valprep)
 
         if len(extensions) <= 0:
             unsupported_incidents.add(pendant_incident)
@@ -95,6 +97,11 @@ def explore(g, generation_forest,
     # prune step (future recursions will not explore these)
     pendant_incidents -= unsupported_incidents
 
+    # clear domain of clause (which we won't need anymore) to save memory
+    clause._satisfy_body = None
+    clause._satisfy_full = None
+
+
     for extended_clause in {ext for ext in extended_clauses}:
         # rmv corresponding extension to avoid duplicates in recursions
         pendant_incidents.discard(clause_incident_map[extended_clause])
@@ -102,12 +109,12 @@ def explore(g, generation_forest,
         extended_clauses |= explore(g, generation_forest, extended_clause,
                                     {pi for pi in pendant_incidents}, depth, cache,
                                     min_support, min_confidence, p_explore,
-                                    p_extend)
+                                    p_extend, valprep)
 
     return extended_clauses
 
 def extend(g, parent, pendant_incident, candidate_extensions, cache,
-           depth, min_support, min_confidence, p_extend):
+           depth, min_support, min_confidence, p_extend, valprep):
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
@@ -185,7 +192,8 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
         clause_extension_map[extended_clause] = candidate_extension
 
         # add link for validation optimization
-        parent.children.add(extended_clause)
+        if valprep:
+            parent.children.add(extended_clause)
 
         # save new clause
         extended_clauses.add(extended_clause)
@@ -206,7 +214,8 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                    depth,
                                    min_support,
                                    min_confidence,
-                                   p_extend)
+                                   p_extend,
+                                   valprep)
 
     return extended_clauses
 

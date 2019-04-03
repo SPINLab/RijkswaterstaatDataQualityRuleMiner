@@ -16,7 +16,8 @@ from sequential import explore
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_extend):
+def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore,
+                p_extend, valprep):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
 
@@ -50,7 +51,8 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_e
                                                                    min_support,
                                                                    min_confidence,
                                                                    p_explore,
-                                                                   p_extend)
+                                                                   p_extend,
+                                                                   valprep)
                                                                  for clause in generation_forest.get_tree(ctype).get(depth)),
                                                                  chunksize=chunksize if chunksize > 1 else 2):
                         derivatives.update(clause_derivatives)
@@ -63,7 +65,7 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore, p_e
     return generation_forest
 
 def generate_depth_mp(inputs):
-    clause, g, generation_forest, depth, cache, min_support, min_confidence, p_explore, p_extend = inputs
+    clause, g, generation_forest, depth, cache, min_support, min_confidence, p_explore, p_extend, valprep = inputs
     pendant_incidents = {assertion for assertion in clause.body.distances[depth]
                             if type(assertion.rhs) is ObjectTypeVariable}
 
@@ -76,7 +78,8 @@ def generate_depth_mp(inputs):
                    min_support,
                    min_confidence,
                    p_explore,
-                   p_extend)
+                   p_extend,
+                   valprep)
 
 
 def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support, min_confidence):
