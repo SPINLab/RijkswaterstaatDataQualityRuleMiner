@@ -49,6 +49,10 @@ def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend, val
                                        p_extend,
                                        valprep)
 
+                # clear domain of clause (which we won't need anymore) to save memory
+                clause._satisfy_body = None
+                clause._satisfy_full = None
+    
             print("(+{} added)".format(len(derivatives)))
             generation_forest.update_tree(ctype, derivatives, depth+1)
 
@@ -96,11 +100,6 @@ def explore(g, generation_forest,
 
     # prune step (future recursions will not explore these)
     pendant_incidents -= unsupported_incidents
-
-    # clear domain of clause (which we won't need anymore) to save memory
-    clause._satisfy_body = None
-    clause._satisfy_full = None
-
 
     for extended_clause in {ext for ext in extended_clauses}:
         # rmv corresponding extension to avoid duplicates in recursions
