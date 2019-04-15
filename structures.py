@@ -25,6 +25,7 @@ class Clause():
     parent = None  # parent Clause instance
     children = None  # children Clause instances; used for validation optimization
 
+    _prune = False
     _satisfy_body = None
     _satisfy_full = None
 
@@ -38,6 +39,7 @@ class Clause():
         self.parent = parent
         self.children = set()
 
+        self._prune = False
         self._satisfy_body = set()
         self._satisfy_full = set()
 
@@ -278,6 +280,12 @@ class GenerationForest():
 
         return self._trees[ctype]
 
+    def prune(self, ctype, depth, clauses):
+        if ctype not in self._trees.keys():
+            raise KeyError()
+
+        self._trees[ctype].prune(clauses, depth)
+
     def plant(self, ctype, tree):
         if type(tree) is not GenerationTree:
             raise TypeError()
@@ -324,6 +332,19 @@ class GenerationTree():
         self._tree[depth].add(clause)
         self.size += 1
 
+    def rmv(self, clause, depth):
+        if type(clause) is not Clause:
+            raise TypeError()
+        if depth >= self.height:
+            raise IndexError("Depth exceeds height of tree")
+
+        self._tree[depth].remove(clause)
+        self.size -= 1
+
+        if len(self._tree[depth]) == 0:
+            self._tree.pop()
+            self.height -= 1
+
     def update(self, clauses, depth):
         # redundancy needed for case if len(clauses) == 0
         if depth > self.height:
@@ -334,6 +355,10 @@ class GenerationTree():
 
         for clause in clauses:
             self.add(clause, depth)
+
+    def prune(self, clauses, depth):
+        for clause in clauses:
+            self.rmv(clause, depth)
 
     def get(self, depth=-1):
         if depth < 0:

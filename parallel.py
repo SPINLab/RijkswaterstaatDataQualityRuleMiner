@@ -17,7 +17,7 @@ IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore,
-                p_extend, valprep):
+                p_extend, valprep, prune):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
 
@@ -34,9 +34,10 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore,
             for ctype in generation_forest.types():
                 print(" type {}".format(ctype), end=" ")
 
-                # calculate n without storing the whole set in memory
+                prune_set = set()
                 nclauses = 0
                 for clause in generation_forest.get_tree(ctype).get(depth):
+                    # calculate n without storing the whole set in memory
                     nclauses += 1
 
                 derivatives = set()
@@ -57,10 +58,41 @@ def generate_mp(nproc, g, max_depth, min_support, min_confidence, p_explore,
                                                                  chunksize=chunksize if chunksize > 1 else 2):
                         derivatives.update(clause_derivatives)
 
-                print("(+{} added)".format(len(derivatives)))
+                print("(+{} added".format(len(derivatives)), end="")
+
+                for clause in generation_forest.get_tree(ctype).get(depth):
+                    # clear domain of clause (which we won't need anymore) to save memory
+                    clause._satisfy_body = None
+                    clause._satisfy_full = None
+
+                    if prune and depth > 0 and clause._prune is True:
+                        prune_set.add(clause)
+
+                # prune clauses after generating children to still allow for complex children
+                if prune:
+                    generation_forest.prune(ctype, depth, prune_set)
+                    if len(prune_set) > 0:
+                        print(", {} pruned on depth {}".format(len(prune_set), depth), end="")
+
+                    # prune children in last iteration
+                    if depth == max_depth-1:
+                        prune_set = set()
+                        for derivative in derivatives:
+                            if derivative._prune is True:
+                                prune_set.add(derivative)
+
+                        derivatives -= prune_set
+                        if len(prune_set) > 0:
+                            print(", {} pruned on depth {}".format(len(prune_set),
+                                                                   depth+1), end="")
+
+                print(")")
                 generation_forest.update_tree(ctype, derivatives, depth+1)
 
-        print('completed in {:0.3f}s'.format(process_time()-t0))
+        duration = process_time()-t0
+        print('generated {} clauses in {:0.3f}s'.format(
+            sum([tree.size for tree in generation_forest._trees.values()]),
+            duration))
 
     return generation_forest
 

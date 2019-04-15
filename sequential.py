@@ -16,7 +16,13 @@ from utils import isEquivalent, predicate_frequency
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend, valprep):
+# add option to only look at certain depth
+# needs deletion of clause between 0 < depth < current_depth -1 (current+parents)
+
+# only generate for datatypes or values
+
+def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend,
+             valprep, prune):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
     """
@@ -30,6 +36,7 @@ def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend, val
         for ctype in generation_forest.types():
             print(" type {}".format(ctype), end=" ")
             derivatives = set()
+            prune_set = set()
 
             for clause in generation_forest.get_tree(ctype).get(depth):
                 # only consider unbound object type variables as an extension of
@@ -52,11 +59,37 @@ def generate(g, max_depth, min_support, min_confidence, p_explore, p_extend, val
                 # clear domain of clause (which we won't need anymore) to save memory
                 clause._satisfy_body = None
                 clause._satisfy_full = None
-    
-            print("(+{} added)".format(len(derivatives)))
+
+                if prune and depth > 0 and clause._prune is True:
+                    prune_set.add(clause)
+
+            print("(+{} added".format(len(derivatives)), end="")
+
+            # prune clauses after generating children to still allow for complex children
+            if prune:
+                generation_forest.prune(ctype, depth, prune_set)
+                if len(prune_set) > 0:
+                    print(", {} pruned on depth {}".format(len(prune_set), depth), end="")
+
+                # prune children in last iteration
+                if depth == max_depth-1:
+                    prune_set = set()
+                    for derivative in derivatives:
+                        if derivative._prune is True:
+                            prune_set.add(derivative)
+
+                    derivatives -= prune_set
+                    if len(prune_set) > 0:
+                        print(", {} pruned on depth {}".format(len(prune_set),
+                                                               depth+1), end="")
+
+            print(")")
             generation_forest.update_tree(ctype, derivatives, depth+1)
 
-    print('completed in {:0.3f}s'.format(process_time()-t0))
+    duration = process_time()-t0
+    print('generated {} clauses in {:0.3f}s'.format(
+        sum([tree.size for tree in generation_forest._trees.values()]),
+        duration))
 
     return generation_forest
 
@@ -186,6 +219,10 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                     head,
                                     satisfies_body)
         extended_clause.range_probability = confidence / pfreq
+
+        # set delayed pruning if no reduction in domain
+        if support >= parent.support:
+            extended_clause._prune = True
 
         # remember which extension was added (optimization)
         clause_extension_map[extended_clause] = candidate_extension

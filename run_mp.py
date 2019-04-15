@@ -33,6 +33,8 @@ if __name__ == "__main__":
             required=False, default=1.0)
     parser.add_argument("--p_extend", help="Probability of extending at endpoint",
             required=False, default=1.0)
+    parser.add_argument("--noprune", help="Do not prune the output set",
+            required=False, action='store_true')
     parser.add_argument("--valopt", help="Prepare output for validation (only relevant to pkl)",
             required=False, action='store_true')
     parser.add_argument("--test", help="Dry run without saving results",
@@ -61,7 +63,7 @@ if __name__ == "__main__":
     f = generate_mp(int(args.nproc), g, int(args.max_depth),
                    int(args.min_support), int(args.min_confidence),
                    float(args.p_explore), float(args.p_extend),
-                   args.valopt)
+                   args.valopt, not args.noprune)
 
     if args.test:
         exit(0)
