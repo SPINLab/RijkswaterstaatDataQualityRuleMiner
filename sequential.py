@@ -16,9 +16,6 @@ from utils import isEquivalent, predicate_frequency
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-# add option to only look at certain depth
-# needs deletion of clause between 0 < depth < current_depth -1 (current+parents)
-
 def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
              valprep, prune, mode):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
