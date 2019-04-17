@@ -286,6 +286,12 @@ class GenerationForest():
 
         self._trees[ctype].prune(clauses, depth)
 
+    def clear(self, ctype, depth):
+        if ctype not in self._trees.keys():
+            raise KeyError()
+
+        self._trees[ctype].clear(depth)
+
     def plant(self, ctype, tree):
         if type(tree) is not GenerationTree:
             raise TypeError()
@@ -341,10 +347,6 @@ class GenerationTree():
         self._tree[depth].remove(clause)
         self.size -= 1
 
-        if len(self._tree[depth]) == 0:
-            self._tree.pop()
-            self.height -= 1
-
     def update(self, clauses, depth):
         # redundancy needed for case if len(clauses) == 0
         if depth > self.height:
@@ -359,6 +361,13 @@ class GenerationTree():
     def prune(self, clauses, depth):
         for clause in clauses:
             self.rmv(clause, depth)
+
+    def clear(self, depth):
+        if depth >= self.height:
+            raise IndexError("Depth exceeds height of tree")
+
+        self.size -= len(self._tree[depth])
+        self._tree[depth] = set()
 
     def get(self, depth=-1):
         if depth < 0:

@@ -11,14 +11,15 @@ from rdflib.util import guess_format
 
 from sequential import generate
 from ui import _LEFTARROW, _PHI, generate_label_map, pretty_clause
+from utils import integerRangeArg
 
 
 if __name__ == "__main__":
     timestamp = int(time())
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--max_depth", help="Maximum depth to explore",
-            required=True)
+    parser.add_argument("-d", "--depth", help="Depths to explore",
+            type=integerRangeArg, required=True)
     parser.add_argument("-s", "--min_support", help="Minimal clause support",
             required=True)
     parser.add_argument("-c", "--min_confidence", help="Minimal clause confidence",
@@ -27,6 +28,8 @@ if __name__ == "__main__":
             choices = ["tsv", "pkl"], default="tsv")
     parser.add_argument("-i", "--input", help="One or more RDF-encoded graphs",
             required=True, nargs='+')
+    parser.add_argument("--mode", help="A[box], T[box], or B[oth] as candidates for head and body",
+            choices = ["AA", "AT", "TA", "TT", "AB", "BA", "TB", "BT", "BB"], default="BB")
     parser.add_argument("--p_explore", help="Probability of exploring candidate endpoint",
             required=False, default=1.0)
     parser.add_argument("--p_extend", help="Probability of extending at endpoint",
@@ -39,11 +42,12 @@ if __name__ == "__main__":
             required=False, action='store_true')
     args = parser.parse_args()
 
-    print("depth: "+str(args.max_depth)+"; "+
+    print("depth: "+str(args.depth)[5:]+"; "+
           "supp: "+str(args.min_support)+"; "+
           "conf: "+str(args.min_confidence)+"; "+
           "p_explore: "+str(args.p_explore)+"; "+
-          "p_extend: "+str(args.p_extend))
+          "p_extend: "+str(args.p_extend)+"; "+
+          "mode: "+str(args.mode))
 
 
     # load graph(s)
@@ -58,10 +62,10 @@ if __name__ == "__main__":
         args.valopt = False
 
     # compute clause
-    f = generate(g, int(args.max_depth),
+    f = generate(g, args.depth,
                  int(args.min_support), int(args.min_confidence),
                  float(args.p_explore), float(args.p_extend),
-                 args.valopt, not args.noprune)
+                 args.valopt, not args.noprune, args.mode)
 
     if args.test:
         exit(0)
@@ -69,14 +73,14 @@ if __name__ == "__main__":
     print("storing results...", end=" ")
     # store clauses
     if args.output == "pkl":
-        pickle.dump(f, open("./generation_forest(d{}s{}c{})_{}.pkl".format(str(args.max_depth),
+        pickle.dump(f, open("./generation_forest(d{}s{}c{})_{}.pkl".format(str(args.depth[5:]),
                                                                            str(args.min_support),
                                                                            str(args.min_confidence),
                                                                            timestamp), "wb"))
     else:
         ns_dict = {v:k for k,v in g.namespaces()}
         label_dict = generate_label_map(g)
-        with open("./generation_forest(d{}s{}c{})_{}.tsv".format(str(args.max_depth),
+        with open("./generation_forest(d{}s{}c{})_{}.tsv".format(str(args.depth[5:]),
                                                                  str(args.min_support),
                                                                  str(args.min_confidence),
                                                                  timestamp), "w") as ofile:

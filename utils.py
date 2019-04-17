@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+from argparse import ArgumentTypeError
+from re import match
+
 from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
@@ -123,3 +126,13 @@ def isSameType(resourceA, resourceB, cache):
             return True
 
     return False
+
+def integerRangeArg(string):
+    m = match(r'(\d+)(?:-(\d+))?$', string)
+    if not m:
+        raise ArgumentTypeError("'" + string + "' is not a range of number. Expected forms like '0-5' or '2'.")
+
+    if not m.group(2):
+        return range(0, int(m.group(1)))
+
+    return range(int(m.group(1)), int(m.group(2)))
