@@ -187,6 +187,9 @@ def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support,
         if offset-1 > 0:
             print("\033[E"*(offset-1), end="")
 
+        if tree.size <= 0:
+            continue
+
         generation_forest.plant(t, tree)
 
     return generation_forest

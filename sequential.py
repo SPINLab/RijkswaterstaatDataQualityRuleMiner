@@ -145,9 +145,6 @@ def explore(g, generation_forest,
         if p_explore < random():
             continue
 
-        #candidate_extensions = {candidate_clause.head for candidate_clause in
-        #                        generation_forest.get_tree(pendant_incident.rhs.type).get(0)}
-
         # gather all possible extensions for an entity of type t
         candidate_extensions = set()
         for candidate_clause in generation_forest.get_tree(pendant_incident.rhs.type).get(0):
@@ -444,10 +441,11 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                     if phi.confidence >= min_confidence:
                         generation_tree.add(phi, depth=0)
 
+        print("done (+{} added)".format(generation_tree.size))
+        
         if generation_tree.size <= 0:
             continue
 
-        print("done (+{} added)".format(generation_tree.size))
         generation_forest.plant(t, generation_tree)
 
     return generation_forest
