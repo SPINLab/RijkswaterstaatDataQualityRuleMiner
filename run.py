@@ -3,7 +3,7 @@
 import argparse
 import csv
 import pickle
-from sys import exit
+from sys import maxsize, exit
 from time import time
 
 from rdflib import Graph
@@ -28,6 +28,8 @@ if __name__ == "__main__":
             choices = ["tsv", "pkl"], default="tsv")
     parser.add_argument("-i", "--input", help="One or more RDF-encoded graphs",
             required=True, nargs='+')
+    parser.add_argument("--max_size", help="Maximum context size",
+            required=False, default=maxsize)
     parser.add_argument("--mode", help="A[box], T[box], or B[oth] as candidates for head and body",
             choices = ["AA", "AT", "TA", "TT", "AB", "BA", "TB", "BT", "BB"], default="BB")
     parser.add_argument("--p_explore", help="Probability of exploring candidate endpoint",
@@ -65,7 +67,8 @@ if __name__ == "__main__":
     f = generate(g, args.depth,
                  int(args.min_support), int(args.min_confidence),
                  float(args.p_explore), float(args.p_extend),
-                 args.valopt, not args.noprune, args.mode)
+                 args.valopt, not args.noprune, args.mode,
+                 int(args.max_size))
 
     if args.test:
         exit(0)

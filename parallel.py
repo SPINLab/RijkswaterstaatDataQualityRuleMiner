@@ -17,7 +17,7 @@ IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
-                p_extend, valprep, prune, mode):
+                p_extend, valprep, prune, mode, max_length_body):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
 
@@ -39,9 +39,6 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
                 prune_set = set()
                 nclauses = 0
                 for clause in generation_forest.get_tree(ctype).get(depth):
-                    # calculate n without storing the whole set in memory
-                    nclauses += 1
-
                     if depth == 0:
                         if ctype not in mode_skip_dict.keys():
                             mode_skip_dict[ctype] = set()
@@ -52,6 +49,12 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
                             # skip clauses with Abox or Tbox heads to filter
                             # exploration on the remainder from depth 0 and 'up'
                             mode_skip_dict[ctype].add(clause)
+                            continue
+                    elif len(clause.body) >= max_length_body:
+                        continue
+
+                    # calculate n without storing the whole set in memory
+                    nclauses += 1
 
                 derivatives = set()
                 if nclauses >= 1:
@@ -67,9 +70,11 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
                                                                    p_explore,
                                                                    p_extend,
                                                                    valprep,
-                                                                   mode)
+                                                                   mode,
+                                                                   max_length_body)
                                                                   for clause in generation_forest.get_tree(ctype).get(depth)
-                                                                  if clause not in mode_skip_dict[ctype]),
+                                                                  if clause not in mode_skip_dict[ctype]
+                                                                  and len(clause.body) < max_length_body),
                                                                  chunksize=chunksize if chunksize > 1 else 2):
                         derivatives.update(clause_derivatives)
 
@@ -135,7 +140,7 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
 
 def generate_depth_mp(inputs):
     clause, g, generation_forest, depth, cache, min_support, min_confidence, \
-    p_explore, p_extend, valprep, mode = inputs
+    p_explore, p_extend, valprep, mode, max_length_body = inputs
     pendant_incidents = {assertion for assertion in clause.body.distances[depth]
                             if type(assertion.rhs) is ObjectTypeVariable}
 
@@ -150,7 +155,8 @@ def generate_depth_mp(inputs):
                    p_explore,
                    p_extend,
                    valprep,
-                   mode)
+                   mode,
+                   max_length_body)
 
 
 def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support,

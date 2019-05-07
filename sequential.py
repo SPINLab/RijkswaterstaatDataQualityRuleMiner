@@ -17,7 +17,7 @@ IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
-             valprep, prune, mode):
+             valprep, prune, mode, max_length_body):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
     """
@@ -48,23 +48,25 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
 
                     continue
 
-                # only consider unbound object type variables as an extension of
-                # a bound entity is already implicitly included
-                pendant_incidents = {assertion for assertion in clause.body.distances[depth]
-                                        if type(assertion.rhs) is ObjectTypeVariable}
+                if len(clause.body) < max_length_body:
+                    # only consider unbound object type variables as an extension of
+                    # a bound entity is already implicitly included
+                    pendant_incidents = {assertion for assertion in clause.body.distances[depth]
+                                            if type(assertion.rhs) is ObjectTypeVariable}
 
-                derivatives |= explore(g,
-                                       generation_forest,
-                                       clause,
-                                       pendant_incidents,
-                                       depth,
-                                       cache,
-                                       min_support,
-                                       min_confidence,
-                                       p_explore,
-                                       p_extend,
-                                       valprep,
-                                       mode)
+                    derivatives |= explore(g,
+                                           generation_forest,
+                                           clause,
+                                           pendant_incidents,
+                                           depth,
+                                           cache,
+                                           min_support,
+                                           min_confidence,
+                                           p_explore,
+                                           p_extend,
+                                           valprep,
+                                           mode,
+                                           max_length_body)
 
                 # clear domain of clause (which we won't need anymore) to save memory
                 clause._satisfy_body = None
@@ -129,7 +131,8 @@ def explore(g, generation_forest,
             clause, pendant_incidents,
             depth, cache, min_support,
             min_confidence, p_explore,
-            p_extend, valprep, mode):
+            p_extend, valprep, mode,
+            max_length_body):
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
     """
@@ -161,7 +164,7 @@ def explore(g, generation_forest,
         # evaluate all candidate extensions for this depth
         extensions = extend(g, clause, pendant_incident, candidate_extensions,
                             cache, depth, min_support, min_confidence, p_extend,
-                            valprep)
+                            valprep, max_length_body)
 
         if len(extensions) <= 0:
             unsupported_incidents.add(pendant_incident)
@@ -179,15 +182,19 @@ def explore(g, generation_forest,
         # rmv corresponding extension to avoid duplicates in recursions
         pendant_incidents.discard(clause_incident_map[extended_clause])
 
+        if len(extended_clause.body) >= max_length_body:
+            continue
+
         extended_clauses |= explore(g, generation_forest, extended_clause,
                                     {pi for pi in pendant_incidents}, depth, cache,
                                     min_support, min_confidence, p_explore,
-                                    p_extend, valprep, mode)
+                                    p_extend, valprep, mode, max_length_body)
 
     return extended_clauses
 
 def extend(g, parent, pendant_incident, candidate_extensions, cache,
-           depth, min_support, min_confidence, p_extend, valprep):
+           depth, min_support, min_confidence, p_extend, valprep,
+           max_length_body):
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
@@ -282,6 +289,9 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
         # rmv corresponding extension to avoid duplicates in recursions
         candidate_extensions.discard(clause_extension_map[extended_clause])
 
+        if len(extended_clause.body) >= max_length_body:
+            continue
+
         # expand new clause on same depth
         extended_clauses |= extend(g,
                                    extended_clause,
@@ -292,7 +302,8 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                    min_support,
                                    min_confidence,
                                    p_extend,
-                                   valprep)
+                                   valprep,
+                                   max_length_body)
 
     return extended_clauses
 

@@ -231,6 +231,9 @@ class ClauseBody():
 
         return hash(value)
 
+    def __len__(self):
+        return len(self.connections.keys())
+
     def __repr__(self):
         return "BODY [{}]".format(str(self))
 
