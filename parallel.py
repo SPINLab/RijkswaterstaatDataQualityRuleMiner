@@ -17,7 +17,7 @@ IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
-                p_extend, valprep, prune, mode, max_length_body):
+                p_extend, valprep, prune, mode, max_length_body, max_width):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
 
@@ -71,7 +71,8 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
                                                                    p_extend,
                                                                    valprep,
                                                                    mode,
-                                                                   max_length_body)
+                                                                   max_length_body,
+                                                                   max_width)
                                                                   for clause in generation_forest.get_tree(ctype).get(depth)
                                                                   if clause not in mode_skip_dict[ctype]
                                                                   and len(clause.body) < max_length_body),
@@ -140,7 +141,7 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
 
 def generate_depth_mp(inputs):
     clause, g, generation_forest, depth, cache, min_support, min_confidence, \
-    p_explore, p_extend, valprep, mode, max_length_body = inputs
+    p_explore, p_extend, valprep, mode, max_length_body, max_width = inputs
     pendant_incidents = {assertion for assertion in clause.body.distances[depth]
                             if type(assertion.rhs) is ObjectTypeVariable}
 
@@ -156,7 +157,8 @@ def generate_depth_mp(inputs):
                    p_extend,
                    valprep,
                    mode,
-                   max_length_body)
+                   max_length_body,
+                   max_width)
 
 
 def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support,
@@ -234,6 +236,9 @@ def init_generation_tree_mp(inputs):
     for p in predicate_object_map.keys():
         pfreq = sum(predicate_object_map[p].values())
         if pfreq < min_support:
+            # if the number of entities of type t that have this predicate
+            # is less than the minimal support, then the overall pattern
+            # will have less as well
             continue
 
         # create clauses for all predicate-object pairs

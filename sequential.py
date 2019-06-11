@@ -17,7 +17,7 @@ IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
-             valprep, prune, mode, max_length_body):
+             valprep, prune, mode, max_length_body, max_width):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
     """
@@ -66,7 +66,8 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
                                            p_extend,
                                            valprep,
                                            mode,
-                                           max_length_body)
+                                           max_length_body,
+                                           max_width)
 
                 # clear domain of clause (which we won't need anymore) to save memory
                 clause._satisfy_body = None
@@ -132,7 +133,7 @@ def explore(g, generation_forest,
             depth, cache, min_support,
             min_confidence, p_explore,
             p_extend, valprep, mode,
-            max_length_body):
+            max_length_body, max_width):
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
     """
@@ -164,7 +165,7 @@ def explore(g, generation_forest,
         # evaluate all candidate extensions for this depth
         extensions = extend(g, clause, pendant_incident, candidate_extensions,
                             cache, depth, min_support, min_confidence, p_extend,
-                            valprep, max_length_body)
+                            valprep, max_length_body, max_width, 0)
 
         if len(extensions) <= 0:
             unsupported_incidents.add(pendant_incident)
@@ -188,13 +189,14 @@ def explore(g, generation_forest,
         extended_clauses |= explore(g, generation_forest, extended_clause,
                                     {pi for pi in pendant_incidents}, depth, cache,
                                     min_support, min_confidence, p_explore,
-                                    p_extend, valprep, mode, max_length_body)
+                                    p_extend, valprep, mode, max_length_body,
+                                    max_width)
 
     return extended_clauses
 
 def extend(g, parent, pendant_incident, candidate_extensions, cache,
            depth, min_support, min_confidence, p_extend, valprep,
-           max_length_body):
+           max_length_body, max_width, _width):
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
@@ -202,6 +204,11 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
     extended_clauses = set()
     clause_extension_map = dict()
     unsupported_extensions = set()
+
+    if _width >= max_width:
+        # the class constraint (depth '0') is excluded
+        return extended_clauses
+
     for candidate_extension in candidate_extensions:
 
         # omit if candidate for level 0 is equivalent to head
@@ -269,6 +276,7 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
         extended_clause.range_probability = confidence / pfreq
 
         # set delayed pruning if no reduction in domain
+        # NOTE: (BUG) this isn't deterministic when recursively extending
         if support >= parent.support:
             extended_clause._prune = True
 
@@ -303,7 +311,9 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                    min_confidence,
                                    p_extend,
                                    valprep,
-                                   max_length_body)
+                                   max_length_body,
+                                   max_width,
+                                   _width+1)
 
     return extended_clauses
 
@@ -353,9 +363,9 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
         generation_tree = GenerationTree()
         for p in predicate_object_map.keys():
             pfreq = sum(predicate_object_map[p].values())
-            if pfreq < min_confidence:
+            if pfreq < min_support:
                 # if the number of entities of type t that have this predicate
-                # is less than the minimal confidence, then the overall pattern
+                # is less than the minimal support, then the overall pattern
                 # will have less as well
                 continue
 
@@ -397,7 +407,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                              parent=parent)
 
                 phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
-                phi._satisfy_full = {e for e in phi._satisfy_body if (e, p, o) in g}
+                phi._satisfy_full = {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g}
 
                 phi.support = len(phi._satisfy_body)
                 phi.confidence = len(phi._satisfy_full)
@@ -453,7 +463,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                         generation_tree.add(phi, depth=0)
 
         print("done (+{} added)".format(generation_tree.size))
-        
+
         if generation_tree.size <= 0:
             continue
 

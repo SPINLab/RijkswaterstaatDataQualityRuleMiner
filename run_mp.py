@@ -33,6 +33,8 @@ if __name__ == "__main__":
             required=True, nargs='+')
     parser.add_argument("--max_size", help="Maximum context size",
             required=False, default=maxsize)
+    parser.add_argument("--max_width", help="Maximum width of shell",
+            required=False, default=maxsize)
     parser.add_argument("--mode", help="A[box], T[box], or B[oth] as candidates for head and body",
             choices = ["AA", "AT", "TA", "TT", "AB", "BA", "TB", "BT", "BB"], default="BB")
     parser.add_argument("--p_explore", help="Probability of exploring candidate endpoint",
@@ -71,7 +73,7 @@ if __name__ == "__main__":
                    int(args.min_support), int(args.min_confidence),
                    float(args.p_explore), float(args.p_extend),
                    args.valopt, not args.noprune, args.mode,
-                   int(args.max_size))
+                   int(args.max_size), int(args.max_width))
 
     if args.test:
         exit(0)
@@ -79,14 +81,14 @@ if __name__ == "__main__":
     print("storing results...", end=" ")
     # store clauses
     if args.output == "pkl":
-        pickle.dump(f, open("./generation_forest(d{}s{}c{})_{}.pkl".format(str(args.depth[5:]),
+        pickle.dump(f, open("./generation_forest(d{}s{}c{})_{}.pkl".format(str(args.depth)[5:],
                                                                            str(args.min_support),
                                                                            str(args.min_confidence),
                                                                            timestamp), "wb"))
     else:
         ns_dict = {v:k for k,v in g.namespaces()}
         label_dict = generate_label_map(g)
-        with open("./generation_forest(d{}s{}c{})_{}.tsv".format(str(args.depth[5:]),
+        with open("./generation_forest(d{}s{}c{})_{}.tsv".format(str(args.depth)[5:],
                                                                  str(args.min_support),
                                                                  str(args.min_confidence),
                                                                  timestamp), "w") as ofile:
