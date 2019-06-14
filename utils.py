@@ -1,13 +1,39 @@
 #! /usr/bin/env python
 
 from argparse import ArgumentTypeError
+from datetime import date, datetime, time
 from re import match
 
 from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
+from multimodal import XSD_DATEFRAG, XSD_DATETIME, XSD_NUMERIC
 from structures import TypeVariable, DataTypeVariable, ObjectTypeVariable
+from timeutils import gFrag_to_days
 
+
+def cast_xsd(node, dtype):
+    node = node.toPython()
+    if dtype in XSD_NUMERIC:
+        try:
+            node = float(node)
+        except ValueError:
+            pass
+    elif dtype in XSD_DATETIME:
+        try:
+            if isinstance(node, date):
+                node = datetime.combine(node, time()).isoformat()
+            node = datetime.fromisoformat(node)
+        except ValueError:
+            pass
+    elif dtype in XSD_DATEFRAG:
+        try:
+            node = gFrag_to_days(str(node))
+        except ValueError:
+            pass
+
+
+    return node
 
 def generate_label_map(g):
     label_map = DictDefault(str())

@@ -1,30 +1,35 @@
 #! /usr/bin/env python
 
-from collections import Counter
 from random import random
 from time import process_time
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
 
-from structures import Assertion, Clause, ClauseBody, TypeVariable, DataTypeVariable, IdentityAssertion, ObjectTypeVariable, GenerationForest, GenerationTree
+from structures import (Assertion, Clause, ClauseBody, TypeVariable,
+                        DataTypeVariable, IdentityAssertion,
+                        MultiModalDateFragNode, MultiModalDateTimeNode,
+                        MultiModalNumericNode, ObjectTypeVariable,
+                        GenerationForest, GenerationTree)
 from cache import Cache
 from metrics import support_of, confidence_of
-from utils import isEquivalent, predicate_frequency
+from multimodal import (cluster, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
+                        XSD_DATETIME, XSD_NUMERIC)
+from utils import cast_xsd, isEquivalent, predicate_frequency
 
 
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
 def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
-             valprep, prune, mode, max_length_body, max_width):
+             valprep, prune, mode, max_length_body, max_width, multimodal):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
     """
     cache = Cache(g)
     generation_forest = init_generation_forest(g, cache.object_type_map,
                                                min_support, min_confidence,
-                                               mode)
+                                               mode, multimodal)
 
     mode_skip_dict = dict()
     npruned = 0
@@ -108,7 +113,7 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
         for ctype, skip_set in mode_skip_dict.items():
             generation_forest.prune(ctype, 0, skip_set)
 
-    if 0 not in depths:
+    if 0 not in depths and depths.stop-depths.start > 0:
         for ctype in generation_forest.types():
             n0 = generation_forest.get_tree(ctype).size
             generation_forest.clear(ctype, 0)
@@ -318,7 +323,7 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
     return extended_clauses
 
 def init_generation_forest(g, class_instance_map, min_support, min_confidence,
-                           mode):
+                           mode, multimodal):
     """ Initialize the generation forest by creating all generation trees of
     types which satisfy minimal support and confidence.
     """
@@ -342,18 +347,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
 
         print(" initializing Generation Tree for type {}...".format(str(t)), end=" ")
         # gather all predicate-object pairs belonging to the members of a type
-        predicate_object_map = dict()
-        for e in class_instance_map['type-to-object'][t]:
-            for _, p, o in g.triples((e, None, None)):
-                if p in IGNORE_PREDICATES:
-                    continue
-
-                if p not in predicate_object_map.keys():
-                    predicate_object_map[p] = dict()
-                if o not in predicate_object_map[p].keys():
-                    predicate_object_map[p][o] = 0
-
-                predicate_object_map[p][o] = predicate_object_map[p][o] + 1
+        predicate_object_map = map_predicate_object_pairs(g, class_instance_map['type-to-object'][t])
 
         # create shared variables
         parent = Clause(head=True, body={})
@@ -369,98 +363,111 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                 # will have less as well
                 continue
 
-            # create clauses for all predicate-object pairs
-            object_types = list()
             object_types_map = dict()
-            data_types = list()
             data_types_map = dict()
+            data_types_values_map = dict()
             for o in predicate_object_map[p].keys():
                 if generate_Tbox_heads:
                     # map resources to types for unbound type generation
-                    if type(o) is URIRef:
-                        ctype = g.value(o, RDF.type)
-                        if ctype is None:
-                            ctype = RDFS.Class
-                        object_types.append(ctype)
+                    map_resources(g, p, o, class_instance_map['type-to-object'][t],
+                                  object_types_map, data_types_map)
 
-                        if ctype not in object_types_map.keys():
-                            object_types_map[ctype] = set()
-                        object_types_map[ctype].update(
-                            {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g})
-                    if type(o) is Literal:
-                        dtype = o.datatype
-                        if dtype is None:
-                            dtype = XSD.string if o.language != None else XSD.anyType
 
-                        data_types.append(dtype)
-                        if dtype not in data_types_map.keys():
-                            data_types_map[dtype] = set()
-                        data_types_map[dtype].update(
-                            {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g})
+                if multimodal and type(o) is Literal:
+                    dtype = o.datatype
+                    if dtype is None:
+                        dtype = XSD.string if o.language != None else XSD.anyType
 
+                    if dtype not in SUPPORTED_XSD_TYPES:
+                        # skip if not supported
+                        continue
+
+                    if dtype not in data_types_values_map.keys():
+                        data_types_values_map[dtype] = list()
+                    data_types_values_map[dtype].extend([o]*predicate_object_map[p][o])
+
+            # create clauses for all predicate-object pairs
+            for o in predicate_object_map[p].keys():
                 if not generate_Abox_heads:
                     continue
 
+                if multimodal and type(o) is Literal:
+                    # skip _all_ literals if we go multimodal
+                    continue
+
                 # create new clause
-                phi = Clause(head=Assertion(var, p, o),
-                             body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
-                             parent=parent)
-
-                phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
-                phi._satisfy_full = {e for e in class_instance_map['type-to-object'][t] if (e, p, o) in g}
-
-                phi.support = len(phi._satisfy_body)
-                phi.confidence = len(phi._satisfy_full)
-                phi.domain_probability = phi.confidence/phi.support
-                phi.range_probability = phi.confidence/pfreq
-
-                if phi.confidence >= min_confidence:
+                phi = new_clause(g, parent, var, p, o,
+                                 class_instance_map['type-to-object'][t],
+                                 pfreq, min_confidence)
+                if phi is not None:
                     generation_tree.add(phi, depth=0)
 
+            # add clauses with variables as objects
             if generate_Tbox_heads:
                 # generate unbound object type assertions
-                objecttype_count = Counter(object_types)
-                for ctype, ofreq in objecttype_count.items():
+                for ctype in object_types_map.keys():
                     if ctype is None:
                         continue
 
                     var_o = ObjectTypeVariable(type=ctype)
-                    phi = Clause(head=Assertion(var, p, var_o),
-                                 body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
-                                 parent=parent)
+                    phi = new_variable_clause(parent, var, p, var_o,
+                                              class_instance_map['type-to-object'][t],
+                                              object_types_map[ctype], pfreq, min_confidence)
 
-                    phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
-                    phi._satisfy_full = {e for e in object_types_map[ctype]}
-
-                    phi.support = len(phi._satisfy_body)
-                    phi.confidence = len(phi._satisfy_full)
-                    phi.domain_probability = phi.confidence/phi.support
-                    phi.range_probability = phi.confidence/pfreq
-
-                    if phi.confidence >= min_confidence:
+                    if phi is not None:
                         generation_tree.add(phi, depth=0)
 
                 # generate unbound data type assertions
-                datatype_count = Counter(data_types)
-                for dtype, ofreq in datatype_count.items():
+                for dtype in data_types_map.keys():
                     if dtype is None:
                         continue
 
                     var_o = DataTypeVariable(type=dtype)
-                    phi = Clause(head=Assertion(var, p, var_o),
-                                 body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
-                                 parent=parent)
+                    phi = new_variable_clause(parent, var, p, var_o,
+                                              class_instance_map['type-to-object'][t],
+                                              data_types_map[dtype], pfreq, min_confidence)
 
-                    phi._satisfy_body = {e for e in class_instance_map['type-to-object'][t]}
-                    phi._satisfy_full = {e for e in data_types_map[dtype]}
-
-                    phi.support = len(phi._satisfy_body)
-                    phi.confidence = len(phi._satisfy_full)
-                    phi.domain_probability = phi.confidence/phi.support
-                    phi.range_probability = phi.confidence/pfreq
-
-                    if phi.confidence >= min_confidence:
+                    if phi is not None:
                         generation_tree.add(phi, depth=0)
+
+            # add multimodal nodes
+            if multimodal:
+                for dtype in data_types_values_map.keys():
+                    nvalues = len(data_types_values_map[dtype])
+                    if nvalues < min_confidence:
+                        # if the full set does not exceed the threshold then nor
+                        # will subsets thereof
+                        continue
+
+                    # determine clusters per xsd type
+                    values_sets = cluster(data_types_values_map[dtype],
+                                          dtype)
+                    nsets = len(values_sets)
+                    if nsets <= 0 or nvalues/nsets < min_confidence:
+                        # skip if the theoretical maximum confidence does not
+                        # exceed the threshold
+                        continue
+
+                    nodes = set()
+                    for value_set in values_sets:
+                        if dtype in XSD_NUMERIC:
+                            nodes.add(MultiModalNumericNode(dtype,
+                                                            *value_set))
+                        elif dtype in XSD_DATETIME:
+                            nodes.add(MultiModalDateTimeNode(dtype,
+                                                             *value_set))
+                        elif dtype in XSD_DATEFRAG:
+                            nodes.add(MultiModalDateFragNode(dtype,
+                                                             *value_set))
+
+                    for node in nodes:
+                        phi = new_multimodal_clause(g, parent, var, p, node, dtype,
+                                                    data_types_values_map,
+                                                    class_instance_map['type-to-object'][t],
+                                                    pfreq, min_confidence)
+
+                        if phi is not None:
+                            generation_tree.add(phi, depth=0)
 
         print("done (+{} added)".format(generation_tree.size))
 
@@ -470,3 +477,105 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
         generation_forest.plant(t, generation_tree)
 
     return generation_forest
+
+def new_clause(g, parent, var, p, o, class_instance_map, pfreq, min_confidence):
+    phi = Clause(head=Assertion(var, p, o),
+                 body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
+                 parent=parent)
+
+    phi._satisfy_full = {e for e in class_instance_map if (e, p, o) in g}
+    phi.confidence = len(phi._satisfy_full)
+
+    if phi.confidence < min_confidence:
+        return None
+
+    phi._satisfy_body = {e for e in class_instance_map}
+
+    phi.support = len(phi._satisfy_body)
+    phi.domain_probability = phi.confidence/phi.support
+    phi.range_probability = phi.confidence/pfreq
+
+    return phi
+
+def new_variable_clause(parent, var, p, o, class_instance_map, types_map, pfreq, min_confidence):
+    phi = Clause(head=Assertion(var, p, o),
+                 body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
+                 parent=parent)
+
+    phi._satisfy_full = {e for e in class_instance_map}
+    phi.confidence = len(phi._satisfy_full)
+
+    if phi.confidence < min_confidence:
+        return None
+
+    phi._satisfy_body = {e for e in types_map}
+
+    phi.support = len(phi._satisfy_body)
+    phi.domain_probability = phi.confidence/phi.support
+    phi.range_probability = phi.confidence/pfreq
+
+    return phi
+
+def new_multimodal_clause(g, parent, var, p, node, dtype, data_types_values_map,
+                          class_instance_map, pfreq, min_confidence):
+    phi = Clause(head=Assertion(var, p, node),
+                 body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
+                 parent=parent)
+
+    phi._satisfy_full = set()
+    for e in class_instance_map:
+        for o in g.objects(e, p):
+            if type(o) is Literal and\
+               o in data_types_values_map[dtype] and\
+               cast_xsd(o, dtype) in node:
+                phi._satisfy_full.add(e)
+
+    phi.confidence = len(phi._satisfy_full)
+    if phi.confidence < min_confidence:
+        return None
+
+    phi._satisfy_body = {e for e in class_instance_map}
+
+    phi.support = len(phi._satisfy_body)
+    phi.domain_probability = phi.confidence/phi.support
+    phi.range_probability = phi.confidence/pfreq
+
+    return phi
+
+def map_resources(g, p, o, class_instance_map,
+                  object_types_map, data_types_map):
+    if type(o) is URIRef:
+        t = g.value(o, RDF.type)
+        if t is None:
+            t = RDFS.Class
+
+        types_map = object_types_map
+    elif type(o) is Literal:
+        t = o.datatype
+        if t is None:
+            t = XSD.string if o.language != None else XSD.anyType
+
+        types_map = data_types_map
+    else:
+        return
+
+    if t not in types_map.keys():
+        types_map[t] = set()
+    types_map[t].update(
+        {e for e in class_instance_map if (e, p, o) in g})
+
+def map_predicate_object_pairs(g, class_instance_map):
+    predicate_object_map = dict()
+    for e in class_instance_map:
+        for _, p, o in g.triples((e, None, None)):
+            if p in IGNORE_PREDICATES:
+                continue
+
+            if p not in predicate_object_map.keys():
+                predicate_object_map[p] = dict()
+            if o not in predicate_object_map[p].keys():
+                predicate_object_map[p][o] = 0
+
+            predicate_object_map[p][o] = predicate_object_map[p][o] + 1
+
+    return predicate_object_map

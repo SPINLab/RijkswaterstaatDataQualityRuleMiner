@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-from collections import Counter
 from math import ceil
 from multiprocessing import Pool
 from time import process_time
@@ -242,9 +241,7 @@ def init_generation_tree_mp(inputs):
             continue
 
         # create clauses for all predicate-object pairs
-        object_types = list()
         object_types_map = dict()
-        data_types = list()
         data_types_map = dict()
         for o in predicate_object_map[p].keys():
             if generate_Tbox_heads:
@@ -253,7 +250,6 @@ def init_generation_tree_mp(inputs):
                     ctype = g.value(o, RDF.type)
                     if ctype is None:
                         ctype = RDFS.Class
-                    object_types.append(ctype)
 
                     if ctype not in object_types_map.keys():
                         object_types_map[ctype] = set()
@@ -264,7 +260,6 @@ def init_generation_tree_mp(inputs):
                     if dtype is None:
                         dtype = XSD.string if o.language != None else XSD.anyType
 
-                    data_types.append(dtype)
                     if dtype not in data_types_map.keys():
                         data_types_map[dtype] = set()
                     data_types_map[dtype].update(
@@ -291,8 +286,7 @@ def init_generation_tree_mp(inputs):
 
         if generate_Tbox_heads:
             # generate unbound object type assertions
-            objecttype_count = Counter(object_types)
-            for ctype, ofreq in objecttype_count.items():
+            for ctype in object_types_map.keys():
                 if ctype is None:
                     continue
 
@@ -313,8 +307,7 @@ def init_generation_tree_mp(inputs):
                     generation_tree.add(phi, depth=0)
 
             # generate unbound data type assertions
-            datatype_count = Counter(data_types)
-            for dtype, ofreq in datatype_count.items():
+            for dtype in data_types_map.keys():
                 if dtype is None:
                     continue
 

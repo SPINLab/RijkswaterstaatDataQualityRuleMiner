@@ -1,8 +1,11 @@
 #! /usr/bin/env python
 
+from re import fullmatch
 from uuid import uuid4
 
 from rdflib.term import Node
+
+from timeutils import days_to_date
 
 
 class Clause():
@@ -120,6 +123,143 @@ class DataTypeVariable(TypeVariable):
 
     def __repr__(self):
         return "DataTypeVariable [{}]".format(str(self))
+
+class MultiModalNode(Node):
+    """ Multimodal Node class """
+    type = None  # XSD type
+
+    def __init__(self, type):
+        self.type = type
+        super().__init__()
+
+    def __str__(self):
+        return "MULTIMODAL [{}]".format(str(self.type))
+
+    def __repr__(self):
+        return "MultiModalNode {} [{}]".format(str(id(self)),
+                                             str(self))
+
+class MultiModalNumericNode(MultiModalNode):
+    """ Numeric Node class """
+    min = 0.0
+    max = 0.0
+
+    def __init__(self, type, min, max):
+        super().__init__(type)
+        self.min = min
+        self.max = max
+
+    def __eq__(self, other):
+        return type(self) is type(other)\
+                and self.type is other.type\
+                and self.min == other.min\
+                and self.max == other.max
+
+    def __lt__(self, other):
+        return self.min < other.min\
+                or (self.min == other.min and self.max < other.max)
+
+    def __contains__(self, value):
+        return value >= self.min and value <= self.max
+
+    def __hash__(self):
+        return hash(str(self.__class__.__name__)+str(self.type)
+                    +str(self.min)+str(self.max))
+
+    def __str__(self):
+        return "Numeric ({},{})".format(str(self.min),
+                                        str(self.max))
+
+    def __repr__(self):
+        return "MultiModalNode {} {}".format(str(id(self)),
+                                             str(self))
+
+class MultiModalStringNode(MultiModalNode):
+    """ String Node class """
+    regex = ".*"
+
+    def __init__(self, type, regex):
+        super().__init__(type)
+        self.regex = regex
+
+    def __eq__(self, other):
+        # does not account for equivalent regex patterns
+        return type(self) is type(other)\
+                and self.type is other.type\
+                and self.regex == other.regex
+
+    def __lt__(self, other):
+        # this should idealy be that one regex pattern is less constrained than
+        # the other.
+        return len(self.regex) < len(other.regex)
+
+    def __contains__(self, value):
+        return fullmatch(self.regex, value) is not None
+
+    def __hash__(self):
+        return hash(str(self.__class__.__name__)+str(self.type)
+                    +self.regex)
+
+    def __str__(self):
+        return "String ({})".format(self.regex)
+
+    def __repr__(self):
+        return "MultiModalNode {} {}".format(str(id(self)),
+                                             str(self))
+
+class MultiModalDateTimeNode(MultiModalNode):
+    """ Date Time Node class """
+    begin = 0.0
+    end = 0.0
+
+    def __init__(self, type, begin, end):
+        super().__init__(type)
+        self.begin = begin
+        self.end = end
+
+    def __eq__(self, other):
+        return type(self) is type(other)\
+                and self.type is other.type\
+                and self.begin == other.begin\
+                and self.end == other.end
+
+    def __lt__(self, other):
+        return self.begin < other.begin\
+                or (self.begin == other.begin and self.end < other.end)
+
+    def __contains__(self, value):
+        return value >= self.begin and value <= self.end
+
+    def __hash__(self):
+        return hash(str(self.__class__.__name__)+str(self.type)
+                    +str(self.begin)+str(self.end))
+
+    def __str__(self):
+        return "DateTime ({},{})".format(str(self.begin),
+                                         str(self.end))
+
+    def __repr__(self):
+        return "MultiModalNode {} {}".format(str(id(self)),
+                                             str(self))
+
+class MultiModalDateFragNode(MultiModalDateTimeNode):
+    """ Date Fragment Node class """
+    gBegin = 0
+    gEnd = 0
+
+    def __init__(self, type, begin, end):
+        # begin and end are in number of days
+        super().__init__(type, begin, end)
+        self.gBegin = days_to_date(begin, type)
+        self.gEnd = days_to_date(end, type)
+
+    def __str__(self):
+        return "DateFrag ({},{})".format(str(self.gBegin),
+                                         str(self.gEnd))
+
+    def __repr__(self):
+        return "MultiModalNode {} {}".format(str(id(self)),
+                                             str(self))
 
 class Assertion(tuple):
     """ Assertion class
