@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
-from structures import IdentityAssertion, DataTypeVariable, ObjectTypeVariable, TypeVariable
+from structures import IdentityAssertion, DataTypeVariable, MultiModalNode, ObjectTypeVariable, TypeVariable
+from utils import cast_xsd
 
 
 def confidence_of(predicate_map,
@@ -35,6 +36,14 @@ def confidence_of(predicate_map,
                     # P(e, ?) with data type(?, t) holds
                     assertion_domain_updated.add(entity)
                     confidence += 1
+    elif isinstance(assertion.rhs, MultiModalNode):
+        for entity in assertion_domain:
+            for resource in predicate_map[assertion.predicate]['forwards'][entity]:
+                if data_type_map['object-to-type'][resource] == assertion.rhs.type\
+                   and cast_xsd(resource, assertion.rhs.type) in assertion.rhs:
+                    # P(e, u) with u satisfied by multimodal pattern
+                    assertion_domain_updated.add(entity)
+                    confidence +=1
 
     return (confidence, assertion_domain_updated)
 
@@ -80,6 +89,14 @@ def support_of(predicate_map,
                         # P(e, ?) with data type(?, t) holds
                         assertion_domain_updated.add(entity)
                         support += 1
+        elif isinstance(assertion.rhs, MultiModalNode):
+            for entity in assertion_domain:
+                for resource in predicate_map[assertion.predicate]['forwards'][entity]:
+                    if data_type_map['object-to-type'][resource] == assertion.rhs.type\
+                       and cast_xsd(resource, assertion.rhs.type) in assertion.rhs:
+                        # P(e, u) with u satisfied by multimodal pattern
+                        assertion_domain_updated.add(entity)
+                        support +=1
 
         return (support, assertion_domain_updated)
 

@@ -2,6 +2,7 @@
 
 from collections import Counter
 from datetime import datetime
+import warnings
 
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import cdist
@@ -61,8 +62,10 @@ def numeric_clusters(X, acc=3):
         if len(X) < k:
             break
 
-        model = KMeans(n_clusters=k).fit(X)
-        models.append(model)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = KMeans(n_clusters=k).fit(X)
+            models.append(model)
 
         distortions.append(sum(np.min(cdist(X, model.cluster_centers_, 'euclidean'), axis=1)) / X.shape[0])
 
@@ -82,7 +85,7 @@ def numeric_clusters(X, acc=3):
              float(round(cc[0]+distortions[i-1], acc)))
             for cc in models[i-1].cluster_centers_]
 
-def string_clusters(object_list, strict=False):
+def string_clusters(object_list, strict=True):
     regex_patterns = list()
     for s in object_list:
         regex_patterns.append(generate_regex(s))

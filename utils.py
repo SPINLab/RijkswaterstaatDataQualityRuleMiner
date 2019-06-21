@@ -8,7 +8,7 @@ from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
 from multimodal import XSD_DATEFRAG, XSD_DATETIME, XSD_NUMERIC, XSD_STRING
-from structures import TypeVariable, DataTypeVariable, ObjectTypeVariable
+from structures import TypeVariable, DataTypeVariable, MultiModalNode, ObjectTypeVariable
 from timeutils import gFrag_to_days
 
 
@@ -149,7 +149,8 @@ def isSameType(resourceA, resourceB, cache):
             resourceA.type == cache.object_type_map['object-to-type'][resourceB]):
             return True
 
-    if isinstance(resourceA, DataTypeVariable):
+    if isinstance(resourceA, DataTypeVariable)\
+       or isinstance(resourceA, MultiModalNode):
         if (type(resourceB) is Literal and\
             resourceB in cache.data_type_map['object-to-type'].keys() and\
             resourceA.type == cache.data_type_map['object-to-type'][resourceB]):

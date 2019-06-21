@@ -8,6 +8,7 @@ from rdflib.graph import Literal, URIRef
 
 from structures import (Assertion, Clause, ClauseBody, TypeVariable,
                         DataTypeVariable, IdentityAssertion,
+                        MultiModalNode,
                         MultiModalDateFragNode, MultiModalDateTimeNode,
                         MultiModalNumericNode, MultiModalStringNode,
                         ObjectTypeVariable, GenerationForest, GenerationTree)
@@ -27,13 +28,14 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
     support and confidence.
     """
     cache = Cache(g)
+
+    t0 = process_time()
     generation_forest = init_generation_forest(g, cache.object_type_map,
                                                min_support, min_confidence,
                                                mode, multimodal)
 
     mode_skip_dict = dict()
     npruned = 0
-    t0 = process_time()
     for depth in range(0, depths.stop):
         print("generating depth {} / {}".format(depth+1, depths.stop))
         for ctype in generation_forest.types():
@@ -163,6 +165,9 @@ def explore(g, generation_forest,
                 continue
             if mode[1] == "T" and not isinstance(candidate_extension.rhs, TypeVariable):
                 # limit body extensions to Tbox
+                continue
+            if isinstance(candidate_extension.rhs, MultiModalNode):
+                # don't allow multimodal nodes in body
                 continue
 
             candidate_extensions.add(candidate_extension)

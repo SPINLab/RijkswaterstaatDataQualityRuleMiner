@@ -3,7 +3,7 @@
 from rdflib.namespace import RDF
 from rdflib.term import Literal, URIRef
 
-from structures import IdentityAssertion, ObjectTypeVariable, TypeVariable
+from structures import IdentityAssertion, MultiModalNode, ObjectTypeVariable, TypeVariable
 from utils import generate_label_map
 
 
@@ -35,7 +35,7 @@ def pretty_clause(clause, ns_dict, label_dict):
     head = pretty_assertion(clause.head, ns_dict, label_dict, type_var)
     body = " {} ".format(_CONJUNCTION).join(
         [pretty_assertion(assertion, ns_dict, label_dict, type_var) for assertion in
-         sorted(clause.body.connections.keys()) if not isinstance(assertion, IdentityAssertion)])
+         clause.body.connections.keys() if not isinstance(assertion, IdentityAssertion)])
 
     type = pretty_type(clause, ns_dict, label_dict)
     body = type if len(body) <= 0 else type + " {} ".format(_CONJUNCTION) + body
@@ -64,7 +64,7 @@ def pretty_assertion(assertion, ns_dict, label_dict, type_var=None):
 
             assertion_str += ", "
             continue
-        if isinstance(r, TypeVariable):
+        if isinstance(r, TypeVariable) and not isinstance(r, MultiModalNode):
             if type_var is not None and type_var == r:
                 assertion_str += "[SELF], "
                 continue

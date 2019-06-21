@@ -124,13 +124,10 @@ class DataTypeVariable(TypeVariable):
     def __repr__(self):
         return "DataTypeVariable [{}]".format(str(self))
 
-class MultiModalNode(Node):
+class MultiModalNode(TypeVariable):
     """ Multimodal Node class """
-    type = None  # XSD type
-
     def __init__(self, type):
-        self.type = type
-        super().__init__()
+        super().__init__(type)
 
     def __str__(self):
         return "MULTIMODAL [{}]".format(str(self.type))
@@ -379,7 +376,7 @@ class ClauseBody():
 
     def __str__(self):
         return "{" + "; ".join([str(assertion) for assertion in
-                                sorted(self.connections.keys())]) + "}"
+                                self.connections.keys()]) + "}"
 
 
 class GenerationForest():
