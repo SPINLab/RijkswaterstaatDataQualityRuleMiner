@@ -176,7 +176,7 @@ class MultiModalNumericNode(MultiModalNode):
 
 class MultiModalStringNode(MultiModalNode):
     """ String Node class """
-    regex = ".*"
+    regex = ""
 
     def __init__(self, type, regex):
         super().__init__(type)

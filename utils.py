@@ -7,7 +7,7 @@ from re import match
 from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
-from multimodal import XSD_DATEFRAG, XSD_DATETIME, XSD_NUMERIC
+from multimodal import XSD_DATEFRAG, XSD_DATETIME, XSD_NUMERIC, XSD_STRING
 from structures import TypeVariable, DataTypeVariable, ObjectTypeVariable
 from timeutils import gFrag_to_days
 
@@ -31,7 +31,11 @@ def cast_xsd(node, dtype):
             node = gFrag_to_days(str(node))
         except ValueError:
             pass
-
+    elif dtype in XSD_STRING:
+        try:
+            node = str(node).strip().lower()
+        except ValueError:
+            pass
 
     return node
 

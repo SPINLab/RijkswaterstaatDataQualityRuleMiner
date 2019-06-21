@@ -9,12 +9,12 @@ from rdflib.graph import Literal, URIRef
 from structures import (Assertion, Clause, ClauseBody, TypeVariable,
                         DataTypeVariable, IdentityAssertion,
                         MultiModalDateFragNode, MultiModalDateTimeNode,
-                        MultiModalNumericNode, ObjectTypeVariable,
-                        GenerationForest, GenerationTree)
+                        MultiModalNumericNode, MultiModalStringNode,
+                        ObjectTypeVariable, GenerationForest, GenerationTree)
 from cache import Cache
 from metrics import support_of, confidence_of
 from multimodal import (cluster, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
-                        XSD_DATETIME, XSD_NUMERIC)
+                        XSD_DATETIME, XSD_NUMERIC, XSD_STRING)
 from utils import cast_xsd, isEquivalent, predicate_frequency
 
 
@@ -459,6 +459,9 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                         elif dtype in XSD_DATEFRAG:
                             nodes.add(MultiModalDateFragNode(dtype,
                                                              *value_set))
+                        elif dtype in XSD_STRING:
+                            nodes.add(MultiModalStringNode(dtype,
+                                                           value_set))
 
                     for node in nodes:
                         phi = new_multimodal_clause(g, parent, var, p, node, dtype,
