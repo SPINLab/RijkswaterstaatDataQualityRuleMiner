@@ -64,7 +64,7 @@ def support_of(predicate_map,
     # no need to continue if we are a pendant incident (optimization)
     if len(graph_pattern.connections[assertion]) <= 0:
         if isinstance(assertion, IdentityAssertion):
-            return (len(assertion_domain), assertion_domain)
+            return (len(assertion_domain), {e for e in assertion_domain})
 
         support = 0
         assertion_domain_updated = set()
@@ -102,7 +102,7 @@ def support_of(predicate_map,
 
     # retrieve range based on assertion's domain
     if isinstance(assertion, IdentityAssertion):
-        assertion_range = assertion_domain
+        assertion_range = {e for e in assertion_domain}
     else:  # type is Clause.Assertion with ObjectTypeVariable as rhs
         assertion_range = set()
         for entity in assertion_domain:

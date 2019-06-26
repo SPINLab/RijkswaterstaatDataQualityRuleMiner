@@ -173,9 +173,29 @@ def explore(g, generation_forest,
             candidate_extensions.add(candidate_extension)
 
         # evaluate all candidate extensions for this depth
-        extensions = extend(g, clause, pendant_incident, candidate_extensions,
+        extensions = extend(g, clause, pendant_incident,
+                            {candidate_extension for candidate_extension in candidate_extensions},
                             cache, depth, min_support, min_confidence, p_extend,
                             valprep, max_length_body, max_width, 0)
+
+        # set delayed pruning on siblings if all have same support/confidence
+        # (ie, as it doesn't matter which extension we add, we can assume that none really matter)
+        # these are not picked up by the extend function as they are derived from pruned parents
+        score_sets = dict()
+        for extension in extensions:
+            if (extension.support, extension.confidence) not in score_sets.keys():
+                score_sets[(extension.support, extension.confidence)] = set()
+            score_sets[(extension.support, extension.confidence)].add(extension)
+
+        for score_set in score_sets.values():
+            if len(score_set) >= 2:
+                l = min({len(extension.body.connections[pendant_incident]) for extension in score_set})
+                extension_parents = [extension for extension in score_set
+                                    if len(extension.body.connections[pendant_incident]) == l]
+                if len(extension_parents) == 1:
+                    score_set.remove(extension_parents[0])
+                for extension in score_set:
+                    extension._prune = True
 
         if len(extensions) <= 0:
             unsupported_incidents.add(pendant_incident)
@@ -247,7 +267,7 @@ def extend(g, parent, pendant_incident, candidate_extensions, cache,
                                              cache.data_type_map,
                                              body,
                                              body.identity,
-                                             {e for e in parent._satisfy_body},
+                                             parent._satisfy_body,
                                              min_support)
 
         if support < min_support:
@@ -376,7 +396,6 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                     # map resources to types for unbound type generation
                     map_resources(g, p, o, class_instance_map['type-to-object'][t],
                                   object_types_map, data_types_map)
-
 
                 if multimodal and type(o) is Literal:
                     dtype = o.datatype
