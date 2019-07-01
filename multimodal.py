@@ -110,6 +110,10 @@ def generalize_regex(patterns):
 
     subpattern_list = list()
     for pattern in patterns:
+        if len(pattern) <= 2:
+            # empty string
+            continue
+
         subpatterns = pattern[1:-1].split('\s')
         if subpatterns[-1][:-3].endswith('[(\.|\?|!)]'):
             end = subpatterns[-1][-14:]
@@ -182,6 +186,10 @@ def generate_regex(s):
     s = ' '.join(s.split())
 
     pattern = '^'
+    if len(s) <= 0:
+        # empty string
+        return pattern + '$'
+
     prev_char_class = character_class(s[0])
     count = 0
     for i in range(len(s)):
