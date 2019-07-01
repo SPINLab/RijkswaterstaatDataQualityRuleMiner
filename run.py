@@ -48,12 +48,7 @@ if __name__ == "__main__":
             required=False, action='store_true')
     args = parser.parse_args()
 
-    print("depth: "+str(args.depth)[5:]+"; "+
-          "supp: "+str(args.min_support)+"; "+
-          "conf: "+str(args.min_confidence)+"; "+
-          "p_explore: "+str(args.p_explore)+"; "+
-          "p_extend: "+str(args.p_extend)+"; "+
-          "mode: "+str(args.mode))
+    print("; ".join(["{}: {}".format(k,v) for k,v in vars(args).items()]))
 
 
     # load graph(s)
