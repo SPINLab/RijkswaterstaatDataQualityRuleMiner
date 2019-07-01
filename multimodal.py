@@ -72,15 +72,19 @@ def numeric_clusters(X, acc=3):
     # determine optimal k using elbow method
     deltas = [distortions[i]-distortions[i+1] for i in range(len(distortions)-1)]
 
-    dmin = min(deltas)
-    dmax = max(deltas)
-    deltas_normalized = [(delta-dmin)/(dmax-dmin) for delta in deltas
-                         if (dmax-dmin) > 0 else 0.0]
+    i = 1  # single cluster by default
+    if len(deltas) > 1:
+        dmin = min(deltas)
+        dmax = max(deltas)
+        if dmax == dmin:
+            dmax += NORMALIZED_MIN
 
-    for i in range(len(deltas_normalized)):
-        if deltas_normalized[i] < NORMALIZED_MIN:
-            # optimal k = i
-            break
+        deltas_normalized = [(delta-dmin)/(dmax-dmin) for delta in deltas]
+
+        for i in range(len(deltas_normalized)):
+            if deltas_normalized[i] < NORMALIZED_MIN:
+                # optimal k = i
+                break
 
     return [(float(round(cc[0]-distortions[i-1], acc)),
              float(round(cc[0]+distortions[i-1], acc)))
