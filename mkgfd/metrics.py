@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
-from structures import IdentityAssertion, DataTypeVariable, MultiModalNode, ObjectTypeVariable, TypeVariable
-from utils import cast_xsd
+from mkgfd.structures import IdentityAssertion, DataTypeVariable, MultiModalNode, ObjectTypeVariable, TypeVariable
+from mkgfd.utils import cast_xsd
 
 
 def confidence_of(predicate_map,

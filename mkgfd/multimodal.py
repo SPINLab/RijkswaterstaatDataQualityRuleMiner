@@ -9,7 +9,7 @@ from scipy.spatial.distance import cdist
 import numpy as np
 from rdflib.namespace import XSD
 
-from timeutils import gFrag_to_days
+from mkgfd.timeutils import gFrag_to_days
 
 
 XSD_DATEFRAG = {XSD.gDay, XSD.gMonth, XSD.gMonthDay, XSD.gYear, XSD.gYearMonth}
@@ -36,7 +36,7 @@ def cluster(object_list, dtype):
     elif dtype in XSD_DATETIME:
         # cluster on POSIX timestamps
         X = np.array([datetime.fromisoformat(v).timestamp() for
-                      v in object_list])
+                      v in object_list if v != "0000-00-00"])
 
         clusters = [(datetime.fromtimestamp(begin),
                      datetime.fromtimestamp(end)) for begin, end in numeric_clusters(X)]

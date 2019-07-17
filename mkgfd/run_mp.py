@@ -2,22 +2,25 @@
 
 import argparse
 import csv
+import os
 import pickle
-from sys import maxsize, exit
 from time import time
+from sys import maxsize
 
 from rdflib import Graph
 from rdflib.util import guess_format
 
-from sequential import generate
-from ui import _LEFTARROW, _PHI, generate_label_map, pretty_clause
-from utils import integerRangeArg
+from mkgfd.parallel import generate_mp
+from mkgfd.ui import _LEFTARROW, _PHI, generate_label_map, pretty_clause
+from mkgfd.utils import integerRangeArg
 
 
 if __name__ == "__main__":
     timestamp = int(time())
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--nproc", help="Number of cores to utilize",
+            default=os.cpu_count())
     parser.add_argument("-d", "--depth", help="Depths to explore",
             type=integerRangeArg, required=True)
     parser.add_argument("-s", "--min_support", help="Minimal clause support",
@@ -50,7 +53,6 @@ if __name__ == "__main__":
 
     print("; ".join(["{}: {}".format(k,v) for k,v in vars(args).items()]))
 
-
     # load graph(s)
     print("importing graphs...", end=" ")
     g = Graph()
@@ -62,13 +64,13 @@ if __name__ == "__main__":
     if args.output != "pkl":
         args.valopt = False
 
-    # compute clause
-    f = generate(g, args.depth,
-                 int(args.min_support), int(args.min_confidence),
-                 float(args.p_explore), float(args.p_extend),
-                 args.valopt, not args.noprune, args.mode,
-                 int(args.max_size), int(args.max_width),
-                 args.multimodal)
+    # compute clauses
+    f = generate_mp(int(args.nproc), g, args.depth,
+                   int(args.min_support), int(args.min_confidence),
+                   float(args.p_explore), float(args.p_extend),
+                   args.valopt, not args.noprune, args.mode,
+                   int(args.max_size), int(args.max_width),
+                   args.multimodal)
 
     if args.test:
         exit(0)

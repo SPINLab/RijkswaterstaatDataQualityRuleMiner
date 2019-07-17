@@ -3,8 +3,8 @@
 from rdflib.namespace import RDF
 from rdflib.term import Literal, URIRef
 
-from structures import IdentityAssertion, MultiModalNode, ObjectTypeVariable, TypeVariable
-from utils import generate_label_map
+from mkgfd.structures import IdentityAssertion, MultiModalNode, ObjectTypeVariable, TypeVariable
+from mkgfd.utils import generate_label_map
 
 
 _CONJUNCTION = "\u2227"

@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from rdflib.term import Node
 
-from timeutils import days_to_date
+from mkgfd.timeutils import days_to_date
 
 
 class Clause():

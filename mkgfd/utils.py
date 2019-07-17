@@ -7,9 +7,9 @@ from re import match
 from rdflib.graph import Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
-from multimodal import XSD_DATEFRAG, XSD_DATETIME, XSD_NUMERIC, XSD_STRING
-from structures import TypeVariable, DataTypeVariable, MultiModalNode, ObjectTypeVariable
-from timeutils import gFrag_to_days
+from mkgfd.multimodal import XSD_DATEFRAG, XSD_DATETIME, XSD_NUMERIC, XSD_STRING
+from mkgfd.structures import TypeVariable, DataTypeVariable, MultiModalNode, ObjectTypeVariable
+from mkgfd.timeutils import gFrag_to_days
 
 
 def cast_xsd(node, dtype):

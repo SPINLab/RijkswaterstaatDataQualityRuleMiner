@@ -7,16 +7,16 @@ from time import process_time
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
 
-from structures import (Clause, TypeVariable,
-                        DataTypeVariable,
-                        MultiModalDateFragNode, MultiModalDateTimeNode,
-                        MultiModalNumericNode, MultiModalStringNode,
-                        ObjectTypeVariable, GenerationForest, GenerationTree)
-from cache import Cache
-from sequential import (explore, new_clause, new_multimodal_clause,
+from mkgfd.structures import (Clause, TypeVariable,
+                            DataTypeVariable,
+                            MultiModalDateFragNode, MultiModalDateTimeNode,
+                            MultiModalNumericNode, MultiModalStringNode,
+                            ObjectTypeVariable, GenerationForest, GenerationTree)
+from mkgfd.cache import Cache
+from mkgfd.sequential import (explore, new_clause, new_multimodal_clause,
                         new_variable_clause, map_resources,
                         map_predicate_object_pairs)
-from multimodal import (cluster, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
+from mkgfd.multimodal import (cluster, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
                         XSD_DATETIME, XSD_NUMERIC, XSD_STRING)
 
 

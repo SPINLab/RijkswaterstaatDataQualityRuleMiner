@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from utils import generate_predicate_map, generate_object_type_map, generate_data_type_map
+from mkgfd.utils import generate_predicate_map, generate_object_type_map, generate_data_type_map
 
 
 class Cache():

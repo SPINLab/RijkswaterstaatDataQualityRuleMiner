@@ -6,17 +6,17 @@ from time import process_time
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
 
-from structures import (Assertion, Clause, ClauseBody, TypeVariable,
-                        DataTypeVariable, IdentityAssertion,
-                        MultiModalNode,
-                        MultiModalDateFragNode, MultiModalDateTimeNode,
-                        MultiModalNumericNode, MultiModalStringNode,
-                        ObjectTypeVariable, GenerationForest, GenerationTree)
-from cache import Cache
-from metrics import support_of, confidence_of
-from multimodal import (cluster, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
+from mkgfd.structures import (Assertion, Clause, ClauseBody, TypeVariable,
+                            DataTypeVariable, IdentityAssertion,
+                            MultiModalNode,
+                            MultiModalDateFragNode, MultiModalDateTimeNode,
+                            MultiModalNumericNode, MultiModalStringNode,
+                            ObjectTypeVariable, GenerationForest, GenerationTree)
+from mkgfd.cache import Cache
+from mkgfd.metrics import support_of, confidence_of
+from mkgfd.multimodal import (cluster, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
                         XSD_DATETIME, XSD_NUMERIC, XSD_STRING)
-from utils import cast_xsd, isEquivalent, predicate_frequency
+from mkgfd.utils import cast_xsd, isEquivalent, predicate_frequency
 
 
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
