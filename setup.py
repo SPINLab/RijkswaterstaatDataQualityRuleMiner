@@ -10,9 +10,13 @@ setup(name='mkgfd',
       description='Multimodal Knowledge Graph Functional Dependencies',
       author='WX Wilcke',
       author_email='w.x.wilcke@vu.nl',
+      url='https://gitlab.com/wxwilcke/mkgfd',
       license='GPL3',
       install_requires=[
-          "rdflib == 4.2.1"
+          "rdflib == 4.2.1",
+          "numpy",
+          "scipy",
+          "scikit-learn"
       ],
       packages=['mkgfd'],
       include_package_data=True)
