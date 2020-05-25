@@ -59,6 +59,7 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
                             # exploration on the remainder from depth 0 and 'up'
                             mode_skip_dict[ctype].add(clause)
                             continue
+
                     elif len(clause.body) >= max_length_body:
                         continue
 

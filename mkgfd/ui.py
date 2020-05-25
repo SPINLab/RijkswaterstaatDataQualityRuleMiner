@@ -83,7 +83,7 @@ def pretty_assertion(assertion, ns_dict, label_dict, type_var=None):
 
 def pretty_uri(uri, ns_dict):
     for ns in ns_dict.keys():
-        if ns not in uri:
+        if not str(uri).startswith(ns):
             continue
 
         qname = str(uri)[len(ns):]

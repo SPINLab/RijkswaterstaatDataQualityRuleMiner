@@ -44,6 +44,15 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
             prune_set = set()
 
             for clause in generation_forest.get_tree(ctype).get(depth):
+                #if depth == 0 and prune and\
+                #   (isinstance(clause.head.rhs, ObjectTypeVariable) or
+                #    isinstance(clause.head.rhs, DataTypeVariable)):
+                #    # assume that predicate range is consistent irrespective of
+                #    # context beyond depth 0
+                #    npruned += 1
+
+                #    continue
+
                 if depth == 0 and mode[0] != mode[1] and \
                    (mode[0] == "A" and isinstance(clause.head.rhs, TypeVariable) or
                     mode[0] == "T" and not isinstance(clause.head.rhs, TypeVariable)):
