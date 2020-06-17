@@ -42,7 +42,14 @@ def cluster(object_list, dtype):
                      datetime.fromtimestamp(end)) for begin, end in numeric_clusters(X)]
     elif dtype in XSD_DATEFRAG:
         # cluster on days
-        X = np.array([gFrag_to_days(v, dtype) for v in object_list])
+        X = list()
+        for v in object_list:
+            try:
+                v = gFrag_to_days(v, dtype)
+                X.append(v)
+            except:
+                continue
+        X = np.array(X)
 
         clusters = numeric_clusters(X)
     elif dtype in XSD_STRING:

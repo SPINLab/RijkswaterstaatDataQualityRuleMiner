@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 
-from random import random
+from random import random, choice
 from time import process_time
+from queue import Queue
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
@@ -40,10 +41,10 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
         print("generating depth {} / {}".format(depth+1, depths.stop))
         for ctype in generation_forest.types():
             print(" type {}".format(ctype), end=" ")
-            derivatives = set()
+            E = set()
             prune_set = set()
 
-            for clause in generation_forest.get_tree(ctype).get(depth):
+            for phi in generation_forest.get_tree(ctype).get(depth):
                 #if depth == 0 and prune and\
                 #   (isinstance(clause.head.rhs, ObjectTypeVariable) or
                 #    isinstance(clause.head.rhs, DataTypeVariable)):
@@ -54,43 +55,65 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
                 #    continue
 
                 if depth == 0 and mode[0] != mode[1] and \
-                   (mode[0] == "A" and isinstance(clause.head.rhs, TypeVariable) or
-                    mode[0] == "T" and not isinstance(clause.head.rhs, TypeVariable)):
+                   (mode[0] == "A" and isinstance(phi.head.rhs, TypeVariable) or
+                    mode[0] == "T" and not isinstance(phi.head.rhs, TypeVariable)):
                     # skip clauses with Abox or Tbox heads to filter
                     # exploration on the remainder from depth 0 and 'up'
                     if ctype not in mode_skip_dict.keys():
                         mode_skip_dict[ctype] = set()
-                    mode_skip_dict[ctype].add(clause)
+                    mode_skip_dict[ctype].add(phi)
 
                     continue
 
-                if len(clause.body) < max_length_body:
+                if len(phi.body) < max_length_body:
+                    C = set()
+
                     # only consider unbound object type variables as an extension of
                     # a bound entity is already implicitly included
-                    pendant_incidents = {assertion for assertion in clause.body.distances[depth]
-                                            if type(assertion.rhs) is ObjectTypeVariable}
+                    I = {assertion for assertion in phi.body.distances[depth]
+                         if type(assertion.rhs) is ObjectTypeVariable}
 
-                    derivatives |= explore(g,
-                                           generation_forest,
-                                           clause,
-                                           pendant_incidents,
-                                           depth,
-                                           cache,
-                                           min_support,
-                                           min_confidence,
-                                           p_explore,
-                                           p_extend,
-                                           valprep,
-                                           mode,
-                                           max_length_body,
-                                           max_width)
+                    for a_i in I:
+                        if a_i.rhs.type not in generation_forest.types():
+                            # if the type lacks support, then a clause which uses it will too
+                            continue
+
+                        # gather all possible extensions for an entity of type t
+                        for psi in generation_forest.get_tree(a_i.rhs.type).get(0):  # J
+                            a_j = psi.head
+                            if mode[1] == "A" and isinstance(a_j.rhs, TypeVariable):
+                                # limit body extensions to Abox
+                                continue
+                            if mode[1] == "T" and not isinstance(a_j.rhs, TypeVariable):
+                                # limit body extensions to Tbox
+                                continue
+                            if isinstance(a_j.rhs, MultiModalNode):
+                                # don't allow multimodal nodes in body
+                                continue
+
+                            C.add((a_i, a_j))
+
+                    E |= explore(g,
+                                 phi,
+                                 C,
+                                 depth,
+                                 cache,
+                                 prune,
+                                 min_support,
+                                 min_confidence,
+                                 p_explore,
+                                 p_extend,
+                                 valprep,
+                                 mode,
+                                 max_length_body,
+                                 max_width)
 
                 # clear domain of clause (which we won't need anymore) to save memory
-                clause._satisfy_body = None
-                clause._satisfy_full = None
+                phi._satisfy_body = None
+                phi._satisfy_full = None
 
-                if prune and depth > 0 and clause._prune is True:
-                    prune_set.add(clause)
+                if prune and depth > 0 and phi._prune is True:
+                    prune_set.add(phi)
 
             # prune clauses after generating children to still allow for complex children
             if prune:
@@ -100,14 +123,14 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
                 # prune children in last iteration
                 if depth == depths.stop-1:
                     prune_set = set()
-                    for derivative in derivatives:
+                    for derivative in E:
                         if derivative._prune is True:
                             prune_set.add(derivative)
 
-                    derivatives -= prune_set
+                    E -= prune_set
                     npruned += len(prune_set)
 
-            print("(+{} added)".format(len(derivatives)))
+            print("(+{} added)".format(len(E)))
 
             # remove clauses after generating children if we are
             # not interested in previous depth
@@ -117,7 +140,7 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
 
                 npruned += n0 - generation_forest.get_tree(ctype).size
 
-            generation_forest.update_tree(ctype, derivatives, depth+1)
+            generation_forest.update_tree(ctype, E, depth+1)
 
     if len(mode_skip_dict) > 0:
         # prune unwanted clauses at depth 0 now that we don't need them anymore
@@ -144,217 +167,167 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
 
     return generation_forest
 
-def explore(g, generation_forest,
-            clause, pendant_incidents,
-            depth, cache, min_support,
+def visited(V, body, a_i, a_j):
+    body.extend(endpoint=a_i, extension=a_j)
+    return body in V
+
+def covers(body, a_i, a_j):
+    return a_j in body.connections[a_i]
+
+def bad_combo(U, body, a_i, a_j):
+    body.extend(endpoint=a_i, extension=a_j)
+    return body in U
+
+def explore(g, phi, C,
+            depth, cache, prune, min_support,
             min_confidence, p_explore,
             p_extend, valprep, mode,
             max_length_body, max_width):
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
     """
-    extended_clauses = set()
-    clause_incident_map = dict()
-    unsupported_incidents = set()
-    for pendant_incident in pendant_incidents:
-        if pendant_incident.rhs.type not in generation_forest.types():
-            # if the type lacks support, then a clause which uses it will too
+    E = set()  # extended clauses
+    V = set()  # visited clauses
+    U = set()  # bad combinations
+
+    qexplore = Queue()
+    qexplore.put(phi)
+    while not qexplore.empty():
+        psi = qexplore.get()
+
+        if len(psi.body) == max_length_body:
             continue
 
-        # skip with probability of (1.0 - p_explore)
+        if depth+1 in psi.body.distances.keys():
+            if len(psi.body.distances[depth+1]) >= max_width:
+                continue
+
+        # skip with probability of (1 - p_explore)
+        skip_endpoint = None
         if p_explore < random():
-            continue
+            skip_endpoint = choice(tuple(C))
 
-        # gather all possible extensions for an entity of type t
-        candidate_extensions = set()
-        for candidate_clause in generation_forest.get_tree(pendant_incident.rhs.type).get(0):
-            candidate_extension = candidate_clause.head
-            if mode[1] == "A" and isinstance(candidate_extension.rhs, TypeVariable):
-                # limit body extensions to Abox
-                continue
-            if mode[1] == "T" and not isinstance(candidate_extension.rhs, TypeVariable):
-                # limit body extensions to Tbox
-                continue
-            if isinstance(candidate_extension.rhs, MultiModalNode):
-                # don't allow multimodal nodes in body
+        for a_i, a_j in C:
+            # test identity here as endpoint is same object
+            if a_j is skip_endpoint:
                 continue
 
-            candidate_extensions.add(candidate_extension)
+            # skip with probability of (1 - p_extend)
+            # place it here as we only want to skip those we are really adding
+            if p_extend < random():
+                continue
 
-        # evaluate all candidate extensions for this depth
-        extensions = extend(g, clause, pendant_incident,
-                            {candidate_extension for candidate_extension in candidate_extensions},
-                            cache, depth, min_support, min_confidence, p_extend,
-                            valprep, max_length_body, max_width, 0)
+            if visited(V, psi.body.copy(), a_i, a_j)\
+               or covers(psi.body, a_i, a_j)\
+               or bad_combo(U, psi.body.copy(), a_i, a_j):
+                continue
 
-        # set delayed pruning on siblings if all have same support/confidence
-        # (ie, as it doesn't matter which extension we add, we can assume that none really matter)
-        # these are not picked up by the extend function as they are derived from pruned parents
-        score_sets = dict()
-        for extension in extensions:
-            if (extension.support, extension.confidence) not in score_sets.keys():
-                score_sets[(extension.support, extension.confidence)] = set()
-            score_sets[(extension.support, extension.confidence)].add(extension)
+            chi = extend(g, psi, a_i, a_j, cache, depth,
+                         min_support, min_confidence)
 
-        for score_set in score_sets.values():
-            if len(score_set) >= 2:
-                l = min({len(extension.body.connections[pendant_incident]) for extension in score_set})
-                extension_parents = [extension for extension in score_set
-                                    if len(extension.body.connections[pendant_incident]) == l]
-                if len(extension_parents) == 1:
-                    score_set.remove(extension_parents[0])
-                for extension in score_set:
-                    extension._prune = True
+            if chi is not None:
+                qexplore.put(chi)
+                E.add(chi)
+                V.add(chi.body.copy())
 
-        if len(extensions) <= 0:
-            unsupported_incidents.add(pendant_incident)
-            continue
+                # add link for validation optimization
+                if valprep:
+                    psi.children.add(chi)
+            else:
+                U.add((psi.body.copy(), a_i, a_j))
 
-        extended_clauses |= extensions
-        for extended_clause in extended_clauses:
-            # remember which incident was explored (optimization)
-            clause_incident_map[extended_clause] = pendant_incident
+    if len(E) <= 0 or not prune:
+        return E
 
-    # prune step (future recursions will not explore these)
-    pendant_incidents -= unsupported_incidents
+    # set delayed pruning on siblings if all have same support/confidence
+    # (ie, as it doesn't matter which extension we add, we can assume that none really matter)
+    qprune = Queue()
+    qprune.put(phi)
+    while not qprune.empty():
+        psi = qprune.get()
+        scores_set = list()
+        for chi in psi.children:
+            scores_set.append((chi.support, chi.confidence))
 
-    for extended_clause in {ext for ext in extended_clauses}:
-        # rmv corresponding extension to avoid duplicates in recursions
-        pendant_incidents.discard(clause_incident_map[extended_clause])
+            if len(chi.children) > 0:
+                qprune.put(chi)
 
-        if len(extended_clause.body) >= max_length_body:
-            continue
+        if len(psi.children) >= 2\
+           and scores_set.count(scores_set)[0] == len(scores_set):
+            for chi in psi.children:
+                chi._prune = True
 
-        extended_clauses |= explore(g, generation_forest, extended_clause,
-                                    {pi for pi in pendant_incidents}, depth, cache,
-                                    min_support, min_confidence, p_explore,
-                                    p_extend, valprep, mode, max_length_body,
-                                    max_width)
+    return E
 
-    return extended_clauses
-
-def extend(g, parent, pendant_incident, candidate_extensions, cache,
-           depth, min_support, min_confidence, p_extend, valprep,
-           max_length_body, max_width, _width):
+def extend(g, psi, a_i, a_j, cache,
+           depth, min_support, min_confidence):
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
     """
-    extended_clauses = set()
-    clause_extension_map = dict()
-    unsupported_extensions = set()
 
-    if _width >= max_width:
-        # the class constraint (depth '0') is excluded
-        return extended_clauses
+    # omit if candidate for level 0 is equivalent to head
+    if depth == 0 and isEquivalent(psi.head, a_j, cache):
+        return None
 
-    for candidate_extension in candidate_extensions:
+    # omit equivalents on same context level (exact or by type)
+    if depth+1 in psi.body.distances.keys():
+        equivalent = False
+        for assertion in psi.body.distances[depth+1]:
+            if isEquivalent(assertion, a_j, cache):
+                equivalent = True
+                break
 
-        # omit if candidate for level 0 is equivalent to head
-        if depth == 0 and isEquivalent(parent.head, candidate_extension, cache):
-            continue
+        if equivalent:
+            return None
 
-        # omit equivalents on same context level (exact or by type)
-        if depth+1 in parent.body.distances.keys():
-            equivalent = False
-            for assertion in parent.body.distances[depth+1]:
-                if isEquivalent(assertion, candidate_extension, cache):
-                    equivalent = True
-                    break
+    # create new clause body by extending that of the parent
+    head = psi.head
+    body = psi.body.copy()
+    body.extend(endpoint=a_i, extension=a_j)
 
-            if equivalent:
-                continue
+    # compute support
+    support, satisfies_body = support_of(cache.predicate_map,
+                                         cache.object_type_map,
+                                         cache.data_type_map,
+                                         body,
+                                         body.identity,
+                                         psi._satisfy_body,
+                                         min_support)
 
-        # create new clause body by extending that of the parent
-        head = parent.head
-        body = parent.body.copy()
-        body.extend(endpoint=pendant_incident, extension=candidate_extension.copy())
+    if support < min_support:
+        return None
 
-        # compute support
-        support, satisfies_body = support_of(cache.predicate_map,
-                                             cache.object_type_map,
-                                             cache.data_type_map,
-                                             body,
-                                             body.identity,
-                                             parent._satisfy_body,
-                                             min_support)
+    # compute confidence
+    confidence, satisfies_full = confidence_of(cache.predicate_map,
+                                               cache.object_type_map,
+                                               cache.data_type_map,
+                                               head,
+                                               satisfies_body)
+    if confidence < min_confidence:
+        return None
 
-        if support < min_support:
-            unsupported_extensions.add(candidate_extension)
-            continue
+    # save more constraint clause
+    chi = Clause(head=head,
+                 body=body,
+                 parent=psi)
+    chi._satisfy_body = satisfies_body
+    chi._satisfy_full = satisfies_full
 
-        # compute confidence
-        confidence, satisfies_full = confidence_of(cache.predicate_map,
-                                                   cache.object_type_map,
-                                                   cache.data_type_map,
-                                                   head,
-                                                   satisfies_body)
-        if confidence < min_confidence:
-            unsupported_extensions.add(candidate_extension)
-            continue
+    chi.support = support
+    chi.confidence = confidence
+    chi.domain_probability = confidence / support
 
-        # skip with probability of (1 - p_extend)
-        # place it here as we only want to skip those we are really adding
-        if p_extend < random():
-            continue
+    pfreq = predicate_frequency(cache.predicate_map,
+                                head,
+                                satisfies_body)
+    chi.range_probability = confidence / pfreq
 
-        # save more constraint clause
-        extended_clause = Clause(head=head,
-                                 body=body,
-                                 parent=parent)
-        extended_clause._satisfy_body = satisfies_body
-        extended_clause._satisfy_full = satisfies_full
+    # set delayed pruning if no reduction in domain
+    if support >= psi.support:
+        chi._prune = True
 
-        extended_clause.support = support
-        extended_clause.confidence = confidence
-        extended_clause.domain_probability = confidence / support
-
-        pfreq = predicate_frequency(cache.predicate_map,
-                                    head,
-                                    satisfies_body)
-        extended_clause.range_probability = confidence / pfreq
-
-        # set delayed pruning if no reduction in domain
-        # NOTE: (BUG) this isn't deterministic when recursively extending
-        if support >= parent.support:
-            extended_clause._prune = True
-
-        # remember which extension was added (optimization)
-        clause_extension_map[extended_clause] = candidate_extension
-
-        # add link for validation optimization
-        if valprep:
-            parent.children.add(extended_clause)
-
-        # save new clause
-        extended_clauses.add(extended_clause)
-
-    # pruning step (future recursions will not evaluate these)
-    candidate_extensions -= unsupported_extensions
-
-    for extended_clause in {extcl for extcl in extended_clauses}:
-        # rmv corresponding extension to avoid duplicates in recursions
-        candidate_extensions.discard(clause_extension_map[extended_clause])
-
-        if len(extended_clause.body) >= max_length_body:
-            continue
-
-        # expand new clause on same depth
-        extended_clauses |= extend(g,
-                                   extended_clause,
-                                   pendant_incident,
-                                   {cext for cext in candidate_extensions},
-                                   cache,
-                                   depth,
-                                   min_support,
-                                   min_confidence,
-                                   p_extend,
-                                   valprep,
-                                   max_length_body,
-                                   max_width,
-                                   _width+1)
-
-    return extended_clauses
+    return chi
 
 def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                            mode, multimodal):
@@ -580,25 +553,27 @@ def new_multimodal_clause(g, parent, var, p, node, dtype, data_types_values_map,
 
 def map_resources(g, p, o, class_instance_map,
                   object_types_map, data_types_map):
+    types = list()
     if type(o) is URIRef:
-        t = g.value(o, RDF.type)
-        if t is None:
-            t = RDFS.Class
+        types = list(g.objects(o, RDF.type))
+        if len(types) <= 0:
+            types.append(RDFS.Class)
 
         types_map = object_types_map
     elif type(o) is Literal:
         t = o.datatype
         if t is None:
             t = XSD.string if o.language != None else XSD.anyType
+        types.append(t)
 
         types_map = data_types_map
     else:
         return
 
-    if t not in types_map.keys():
-        types_map[t] = set()
-    types_map[t].update(
-        {e for e in class_instance_map if (e, p, o) in g})
+    for t in types:
+        if t not in types_map.keys():
+            types_map[t] = set()
+        types_map[t].update({e for e in class_instance_map if (e, p, o) in g})
 
 def map_predicate_object_pairs(g, class_instance_map):
     predicate_object_map = dict()

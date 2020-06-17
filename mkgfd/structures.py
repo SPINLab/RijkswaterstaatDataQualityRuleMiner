@@ -49,6 +49,14 @@ class Clause():
     def __len__(self):
         return len(self.body)
 
+    def __lt__(self, other):
+        if self.body < other.body:
+            return True
+        if self.head < other.head:
+            return True
+
+        return False
+
     def __str__(self):
         return "[Pd:{:0.3f}, Pr:{:0.3f}, Supp:{}, Conf:{}] {} <- {{{}}}".format(
             self.domain_probability,
@@ -295,6 +303,20 @@ class Assertion(tuple):
         return hash("".join([str(self.lhs), str(self.predicate),
                              str(self.rhs), str(self._uuid)]))
 
+    def __lt__(self, other):
+        for a, b in [(self.lhs, other.lhs),
+                     (self.predicate, other.predicate),
+                     (self.rhs, other.rhs)]:
+            if (isinstance(a, Node) and isinstance(b, Node)) or\
+               (isinstance(a, TypeVariable) and isinstance(b, TypeVariable)):
+                return a < b
+            if isinstance(a, Node) and isinstance(b, TypeVariable):
+                return True
+            if isinstance(a, TypeVariable) and isinstance(b, Node):
+                return False
+
+        return False
+
 class IdentityAssertion(Assertion):
     """ Identity Assertion class
 
@@ -319,6 +341,8 @@ class ClauseBody():
     distances = None
     _distances_reverse = None
     identity = None
+    _hash = None
+    _str = None
 
     def __init__(self, identity, connections=None, distances=None, distances_reverse=None):
         if not isinstance(identity, Assertion):
@@ -333,12 +357,14 @@ class ClauseBody():
             self.connections = {identity: set()}
             self.distances = {0: {identity}}
             self._distances_reverse = {identity: 0}
-            return
 
         if identity not in self.connections.keys():
             self.connections[identity] = set()
             self.distances[0].add(identity)
             self._distances_reverse[identity] = 0
+
+        self._str = self._compute_str()
+        self._hash = self._compute_hash()
 
     def extend(self, endpoint, extension):
         if not isinstance(endpoint, Assertion) or\
@@ -354,6 +380,9 @@ class ClauseBody():
             self.distances[distance] = set()
         self.distances[distance].add(extension)
 
+        self._str = self._compute_str()
+        self._hash = self._compute_hash()
+
     def copy(self):
         return ClauseBody(connections={k:{v for v in self.connections[k]} for k in self.connections.keys()},
                            distances={k:{v for v in self.distances[k]} for k in self.distances.keys()},
@@ -361,22 +390,36 @@ class ClauseBody():
                            identity=self.identity)
 
     def __hash__(self):
+        return self._hash
+
+    def _compute_hash(self):
         # order invariant
-        value = str(self.__class__.__name__) + str(self.identity) + str(self) +\
-                "".join([str(k)+"".join(["".join(v) for v in sorted(self.distances[k])])
-                         for k in sorted(self.distances.keys())])
+        value = str(self.__class__.__name__) + str(self.identity) + str(self)
 
         return hash(value)
 
     def __len__(self):
         return len(self.connections.keys())
 
+    def __lt__(self, other):
+        if len(self) < len(other):
+            return True
+        if max(self.distances.keys()) < max(other.distances.keys()):
+            return True
+        if hash(self) < hash(other):
+            return True
+
+        return False
+
     def __repr__(self):
         return "BODY [{}]".format(str(self))
 
     def __str__(self):
+        return self._str
+
+    def _compute_str(self):
         return "{" + "; ".join([str(assertion) for assertion in
-                                self.connections.keys()]) + "}"
+                                sorted(self.connections.keys())]) + "}"
 
 
 class GenerationForest():

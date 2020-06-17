@@ -28,7 +28,7 @@ def cast_xsd(node, dtype):
             pass
     elif dtype in XSD_DATEFRAG:
         try:
-            node = gFrag_to_days(str(node))
+            node = gFrag_to_days(str(node), dtype)
         except ValueError:
             pass
     elif dtype in XSD_STRING:
@@ -50,7 +50,7 @@ def generate_data_type_map(g):
     data_type_map = {'object-to-type': DictDefault(None),
                      'type-to-object': DictDefault(set())}
     for o in g.objects():
-        if type(o) is not Literal:
+        if not isinstance(o, Literal):
             continue
 
         dtype = o.datatype
@@ -69,17 +69,18 @@ def generate_object_type_map(g):
     object_type_map = {'object-to-type': DictDefault(None),
                        'type-to-object': DictDefault(set())}
     for e in g.subjects():
-        if type(e) is not URIRef:
+        if not isinstance(e, URIRef):
             continue
 
-        ctype = g.value(e, RDF.type)
-        if ctype is None:
-            ctype = RDFS.Class
-        if ctype not in object_type_map['type-to-object'].keys():
-            object_type_map['type-to-object'][ctype] = set()
+        ctypes = list(g.objects(e, RDF.type))
+        if len(ctypes) <= 0:
+            ctypes.append(RDFS.Class)
+        for ctype in ctypes:
+            if ctype not in object_type_map['type-to-object'].keys():
+                object_type_map['type-to-object'][ctype] = set()
 
-        object_type_map['type-to-object'][ctype].add(e)
-        object_type_map['object-to-type'][e] = ctype
+            object_type_map['type-to-object'][ctype].add(e)
+            object_type_map['object-to-type'][e] = ctype
 
     return object_type_map
 

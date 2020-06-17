@@ -39,11 +39,13 @@ def days_to_months(days, year):
     days_per_month = [monthrange(year, m)[1] for m in range(1,13)]
 
     i = 1  # JAN
-    while days < days_per_month[i-1]:
+    while days > days_per_month[i-1]:
         days -= days_per_month[i-1]
         i += 1
 
         return (i, days)
+
+    return (1, 1)
 
 def gFrag_to_days(gFrag, dtype):
     if dtype is XSD.gMonth:
