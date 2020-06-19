@@ -499,8 +499,8 @@ def new_clause(g, parent, var, p, o, class_instance_map, pfreq, min_confidence):
         return None
 
     phi._satisfy_body = {e for e in class_instance_map}
-
     phi.support = len(phi._satisfy_body)
+
     phi.domain_probability = phi.confidence/phi.support
     phi.range_probability = phi.confidence/pfreq
 
@@ -511,15 +511,14 @@ def new_variable_clause(parent, var, p, o, class_instance_map, types_map, pfreq,
                  body=ClauseBody(identity=IdentityAssertion(var, IDENTITY, var)),
                  parent=parent)
 
-    phi._satisfy_full = {e for e in class_instance_map}
+    phi._satisfy_full = {e for e in types_map}
     phi.confidence = len(phi._satisfy_full)
-
     if phi.confidence < min_confidence:
         return None
 
-    phi._satisfy_body = {e for e in types_map}
-
+    phi._satisfy_body = {e for e in class_instance_map}
     phi.support = len(phi._satisfy_body)
+
     phi.domain_probability = phi.confidence/phi.support
     phi.range_probability = phi.confidence/pfreq
 
@@ -551,6 +550,7 @@ def new_multimodal_clause(g, parent, var, p, node, dtype, data_types_values_map,
 
     return phi
 
+# map rhs (data)type to lhs entities
 def map_resources(g, p, o, class_instance_map,
                   object_types_map, data_types_map):
     types = list()
@@ -575,6 +575,7 @@ def map_resources(g, p, o, class_instance_map,
             types_map[t] = set()
         types_map[t].update({e for e in class_instance_map if (e, p, o) in g})
 
+# map and count every (p ,o)-pair belonging to entities of this type
 def map_predicate_object_pairs(g, class_instance_map):
     predicate_object_map = dict()
     for e in class_instance_map:

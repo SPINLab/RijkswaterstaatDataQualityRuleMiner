@@ -66,7 +66,7 @@ def generate_data_type_map(g):
     return data_type_map
 
 def generate_object_type_map(g):
-    object_type_map = {'object-to-type': DictDefault(None),
+    object_type_map = {'object-to-type': DictDefault(set()),
                        'type-to-object': DictDefault(set())}
     for e in g.subjects():
         if not isinstance(e, URIRef):
@@ -78,9 +78,11 @@ def generate_object_type_map(g):
         for ctype in ctypes:
             if ctype not in object_type_map['type-to-object'].keys():
                 object_type_map['type-to-object'][ctype] = set()
+            if e not in object_type_map['object-to-type'].keys():
+                object_type_map['object-to-type'][e] = set()
 
             object_type_map['type-to-object'][ctype].add(e)
-            object_type_map['object-to-type'][e] = ctype
+            object_type_map['object-to-type'][e].add(ctype)
 
     return object_type_map
 
@@ -146,9 +148,10 @@ def isEquivalent(assertionA, assertionB, cache):
 def isSameType(resourceA, resourceB, cache):
     if isinstance(resourceA, ObjectTypeVariable):
         if (type(resourceB) is URIRef and\
-            resourceB in cache.object_type_map['object-to-type'].keys() and\
-            resourceA.type == cache.object_type_map['object-to-type'][resourceB]):
-            return True
+            resourceB in cache.object_type_map['object-to-type'].keys()):
+            for ctype in cache.object_type_map['object-to-type'][resourceB]:
+                if ctype == resourceA.type:
+                    return True
 
     if isinstance(resourceA, DataTypeVariable)\
        or isinstance(resourceA, MultiModalNode):
