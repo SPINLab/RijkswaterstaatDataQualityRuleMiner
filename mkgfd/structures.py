@@ -277,6 +277,7 @@ class Assertion(tuple):
     predicate = None
     rhs = None
     _uuid = None
+    _hash = None
 
     def __new__(cls, subject, predicate, object):
         return super().__new__(cls, (subject, predicate, object))
@@ -287,11 +288,13 @@ class Assertion(tuple):
         self.rhs = object
 
         self._uuid = _uuid if _uuid is not None else uuid4()
+        self._hash = self._gen_hash()
 
     def copy(self, reset_uuid=True):
         copy = Assertion(self.lhs, self.predicate, self.rhs)
         if not reset_uuid:
             copy._uuid = self._uuid
+            copy._hash = copy._gen_hash()
 
         return copy
 
@@ -299,6 +302,9 @@ class Assertion(tuple):
         return (self.lhs, self.predicate, self.rhs)
 
     def __hash__(self):
+        return self._hash
+
+    def _gen_hash(self):
         # require unique hash to prevent overlapping dict keys
         return hash("".join([str(self.lhs), str(self.predicate),
                              str(self.rhs), str(self._uuid)]))
@@ -330,6 +336,7 @@ class IdentityAssertion(Assertion):
         copy = IdentityAssertion(self.lhs, self.predicate, self.rhs)
         if not reset_uuid:
             copy._uuid = self._uuid
+            copy._hash = copy._gen_hash()
 
 class ClauseBody():
     """ Clause Body class
@@ -354,14 +361,14 @@ class ClauseBody():
         self._distances_reverse = distances_reverse
 
         if self.connections is None:
-            self.connections = {identity: set()}
+            self.connections = {hash(identity): set()}
             self.distances = {0: {identity}}
-            self._distances_reverse = {identity: 0}
+            self._distances_reverse = {hash(identity): 0}
 
         if identity not in self.connections.keys():
-            self.connections[identity] = set()
+            self.connections[hash(identity)] = set()
             self.distances[0].add(identity)
-            self._distances_reverse[identity] = 0
+            self._distances_reverse[hash(identity)] = 0
 
         self._str = self._compute_str()
         self._hash = self._compute_hash()
@@ -371,14 +378,14 @@ class ClauseBody():
            not isinstance(extension, Assertion):
             raise TypeError()
 
-        self.connections[endpoint].add(extension)
-        self.connections[extension] = set()  # Assertion instances have unique hashes
+        self.connections[hash(endpoint)].add(extension)
+        self.connections[hash(extension)] = set()  # Assertion instances have unique hashes
 
-        distance = self._distances_reverse[endpoint] + 1
-        self._distances_reverse[extension] = distance
+        distance = self._distances_reverse[hash(endpoint)] + 1
+        self._distances_reverse[hash(extension)] = distance
         if distance not in self.distances.keys():
-            self.distances[distance] = set()
-        self.distances[distance].add(extension)
+            self.distances[hash(distance)] = set()
+        self.distances[hash(distance)].add(extension)
 
         self._str = self._compute_str()
         self._hash = self._compute_hash()

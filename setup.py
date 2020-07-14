@@ -7,16 +7,17 @@ def readme():
 
 setup(name='mkgfd',
       version='0.1',
-      description='Multimodal Knowledge Graph Functional Dependencies',
+      description='Context-Aware Knowledge Graph Constraints',
       author='WX Wilcke',
       author_email='w.x.wilcke@vu.nl',
-      url='https://gitlab.com/wxwilcke/mkgfd',
+      url='https://gitlab.com/wxwilcke/cckg',
       license='GPL3',
       install_requires=[
           "rdflib == 4.2.1",
           "numpy",
           "scipy",
-          "scikit-learn"
+          "scikit-learn",
+          "pathos"
       ],
       packages=['mkgfd'],
       include_package_data=True)

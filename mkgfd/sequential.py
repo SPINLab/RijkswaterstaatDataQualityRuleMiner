@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 
 from random import random, choice
-from time import process_time
-from queue import Queue
+from time import time
+from multiprocessing import Manager
 
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
@@ -30,10 +30,12 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
     """
     cache = Cache(g)
 
-    t0 = process_time()
+    t0 = time()
     generation_forest = init_generation_forest(g, cache.object_type_map,
                                                min_support, min_confidence,
                                                mode, multimodal)
+
+    del g  # save memory
 
     mode_skip_dict = dict()
     npruned = 0
@@ -93,8 +95,7 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
 
                             C.add((a_i, a_j))
 
-                    E |= explore(g,
-                                 phi,
+                    E |= explore(phi,
                                  C,
                                  depth,
                                  cache,
@@ -154,7 +155,7 @@ def generate(g, depths, min_support, min_confidence, p_explore, p_extend,
 
             npruned += n0 - generation_forest.get_tree(ctype).size
 
-    duration = process_time()-t0
+    duration = time()-t0
     print('generated {} clauses in {:0.3f}s'.format(
         sum([tree.size for tree in generation_forest._trees.values()]),
         duration),
@@ -172,13 +173,13 @@ def visited(V, body, a_i, a_j):
     return body in V
 
 def covers(body, a_i, a_j):
-    return a_j in body.connections[a_i]
+    return a_j in body.connections[hash(a_i)]
 
 def bad_combo(U, body, a_i, a_j):
     body.extend(endpoint=a_i, extension=a_j)
     return body in U
 
-def explore(g, phi, C,
+def explore(phi, C,
             depth, cache, prune, min_support,
             min_confidence, p_explore,
             p_extend, valprep, mode,
@@ -190,76 +191,77 @@ def explore(g, phi, C,
     V = set()  # visited clauses
     U = set()  # bad combinations
 
-    qexplore = Queue()
-    qexplore.put(phi)
-    while not qexplore.empty():
-        psi = qexplore.get()
+    with Manager() as manager:
+        qexplore = manager.Queue()
+        qexplore.put(phi)
+        while not qexplore.empty():
+            psi = qexplore.get()
 
-        if len(psi.body) == max_length_body:
-            continue
-
-        if depth+1 in psi.body.distances.keys():
-            if len(psi.body.distances[depth+1]) >= max_width:
+            if len(psi.body) == max_length_body:
                 continue
 
-        # skip with probability of (1 - p_explore)
-        skip_endpoint = None
-        if p_explore < random():
-            skip_endpoint = choice(tuple(C))
+            if depth+1 in psi.body.distances.keys():
+                if len(psi.body.distances[depth+1]) >= max_width:
+                    continue
 
-        for a_i, a_j in C:
-            # test identity here as endpoint is same object
-            if a_j is skip_endpoint:
-                continue
+            # skip with probability of (1 - p_explore)
+            skip_endpoint = None
+            if p_explore < random():
+                skip_endpoint = choice(tuple(C))
 
-            # skip with probability of (1 - p_extend)
-            # place it here as we only want to skip those we are really adding
-            if p_extend < random():
-                continue
+            for a_i, a_j in C:
+                # test identity here as endpoint is same object
+                if a_j is skip_endpoint:
+                    continue
 
-            if visited(V, psi.body.copy(), a_i, a_j)\
-               or covers(psi.body, a_i, a_j)\
-               or bad_combo(U, psi.body.copy(), a_i, a_j):
-                continue
+                # skip with probability of (1 - p_extend)
+                # place it here as we only want to skip those we are really adding
+                if p_extend < random():
+                    continue
 
-            chi = extend(g, psi, a_i, a_j, cache, depth,
-                         min_support, min_confidence)
+                if visited(V, psi.body.copy(), a_i, a_j)\
+                   or covers(psi.body, a_i, a_j)\
+                   or bad_combo(U, psi.body.copy(), a_i, a_j):
+                    continue
 
-            if chi is not None:
-                qexplore.put(chi)
-                E.add(chi)
-                V.add(chi.body.copy())
+                chi = extend(psi, a_i, a_j, cache, depth,
+                             min_support, min_confidence)
 
-                # add link for validation optimization
-                if valprep:
-                    psi.children.add(chi)
-            else:
-                U.add((psi.body.copy(), a_i, a_j))
+                if chi is not None:
+                    qexplore.put(chi)
+                    E.add(chi)
+                    V.add(chi.body.copy())
 
-    if len(E) <= 0 or not prune:
-        return E
+                    # add link for validation optimization
+                    if valprep:
+                        psi.children.add(chi)
+                else:
+                    U.add((psi.body.copy(), a_i, a_j))
 
-    # set delayed pruning on siblings if all have same support/confidence
-    # (ie, as it doesn't matter which extension we add, we can assume that none really matter)
-    qprune = Queue()
-    qprune.put(phi)
-    while not qprune.empty():
-        psi = qprune.get()
-        scores_set = list()
-        for chi in psi.children:
-            scores_set.append((chi.support, chi.confidence))
+        if len(E) <= 0 or not prune:
+            return E
 
-            if len(chi.children) > 0:
-                qprune.put(chi)
-
-        if len(psi.children) >= 2\
-           and scores_set.count(scores_set)[0] == len(scores_set):
+        # set delayed pruning on siblings if all have same support/confidence
+        # (ie, as it doesn't matter which extension we add, we can assume that none really matter)
+        qprune = manager.Queue()
+        qprune.put(phi)
+        while not qprune.empty():
+            psi = qprune.get()
+            scores_set = list()
             for chi in psi.children:
-                chi._prune = True
+                scores_set.append((chi.support, chi.confidence))
+
+                if len(chi.children) > 0:
+                    qprune.put(chi)
+
+            if len(psi.children) >= 2\
+               and scores_set.count(scores_set)[0] == len(scores_set):
+                for chi in psi.children:
+                    chi._prune = True
 
     return E
 
-def extend(g, psi, a_i, a_j, cache,
+def extend(psi, a_i, a_j, cache,
            depth, min_support, min_confidence):
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
@@ -370,6 +372,7 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                 # will have less as well
                 continue
 
+            # create clauses for all predicate-object pairs
             object_types_map = dict()
             data_types_map = dict()
             data_types_values_map = dict()
@@ -397,9 +400,9 @@ def init_generation_forest(g, class_instance_map, min_support, min_confidence,
                 if not generate_Abox_heads:
                     continue
 
-                if multimodal and type(o) is Literal:
-                    # skip _all_ literals if we go multimodal
-                    continue
+                #if multimodal and type(o) is Literal:
+                #    # skip _all_ literals if we go multimodal
+                #    continue
 
                 # create new clause
                 phi = new_clause(g, parent, var, p, o,

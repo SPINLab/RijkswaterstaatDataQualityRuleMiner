@@ -1,14 +1,14 @@
 #! /usr/bin/env python
 
 from math import ceil
-from multiprocessing import Pool
-from time import process_time
+from time import time
 
+from pathos.pools import ProcessPool
 from rdflib.namespace import RDF, RDFS, XSD
 from rdflib.graph import Literal, URIRef
 
 from mkgfd.structures import (Clause, TypeVariable,
-                            DataTypeVariable,
+                            DataTypeVariable, MultiModalNode,
                             MultiModalDateFragNode, MultiModalDateTimeNode,
                             MultiModalNumericNode, MultiModalStringNode,
                             ObjectTypeVariable, GenerationForest, GenerationTree)
@@ -20,26 +20,25 @@ from mkgfd.multimodal import (cluster, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
                         XSD_DATETIME, XSD_NUMERIC, XSD_STRING)
 
 
+
+
 IGNORE_PREDICATES = {RDF.type, RDFS.label}
 IDENTITY = URIRef("local://identity")  # reflexive property
 
-def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
-                p_extend, valprep, prune, mode, max_length_body, max_width,
-                multimodal):
+def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore, p_extend,
+             valprep, prune, mode, max_length_body, max_width, multimodal):
     """ Generate all clauses up to and including a maximum depth which satisfy a minimal
     support and confidence.
-
-    Parallel computation support
     """
     cache = Cache(g)
-    with Pool(nproc) as pool:
+    with ProcessPool(nproc) as pool:
+        t0 = time()
         generation_forest = init_generation_forest_mp(pool, nproc, g, cache.object_type_map,
                                                       min_support, min_confidence,
                                                       mode, multimodal)
 
         mode_skip_dict = dict()
         npruned = 0
-        t0 = process_time()
         for depth in range(0, depths.stop):
             print("generating depth {} / {}".format(depth+1, depths.stop))
             for ctype in generation_forest.types():
@@ -47,47 +46,50 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
 
                 prune_set = set()
                 nclauses = 0
-                for clause in generation_forest.get_tree(ctype).get(depth):
+                for phi in generation_forest.get_tree(ctype).get(depth):
                     if depth == 0:
                         if ctype not in mode_skip_dict.keys():
                             mode_skip_dict[ctype] = set()
 
                         if mode[0] != mode[1] and \
-                        (mode[0] == "A" and isinstance(clause.head.rhs, TypeVariable) or
-                        mode[0] == "T" and not isinstance(clause.head.rhs, TypeVariable)):
+                        (mode[0] == "A" and isinstance(phi.head.rhs, TypeVariable) or
+                        mode[0] == "T" and not isinstance(phi.head.rhs, TypeVariable)):
                             # skip clauses with Abox or Tbox heads to filter
                             # exploration on the remainder from depth 0 and 'up'
-                            mode_skip_dict[ctype].add(clause)
+                            mode_skip_dict[ctype].add(phi)
                             continue
 
-                    elif len(clause.body) >= max_length_body:
+                    elif len(phi.body) >= max_length_body:
                         continue
 
                     # calculate n without storing the whole set in memory
                     nclauses += 1
 
-                derivatives = set()
+                E = set()
                 if nclauses >= 1:
                     chunksize = ceil(nclauses/nproc)
-                    for clause_derivatives in pool.imap_unordered(generate_depth_mp,
-                                                                 ((clause,
-                                                                   g,
-                                                                   generation_forest,
-                                                                   depth,
-                                                                   cache,
-                                                                   min_support,
-                                                                   min_confidence,
-                                                                   p_explore,
-                                                                   p_extend,
-                                                                   valprep,
-                                                                   mode,
-                                                                   max_length_body,
-                                                                   max_width)
-                                                                  for clause in generation_forest.get_tree(ctype).get(depth)
-                                                                  if clause not in mode_skip_dict[ctype]
-                                                                  and len(clause.body) < max_length_body),
-                                                                 chunksize=chunksize if chunksize > 1 else 2):
-                        derivatives.update(clause_derivatives)
+                    for psi in pool.uimap(generate_depth_mp,
+                                         ((phi,
+                                           generate_candidates(phi,
+                                                               generation_forest,
+                                                               mode,
+                                                               depth),
+                                           depth,
+                                           cache,
+                                           prune,
+                                           min_support,
+                                           min_confidence,
+                                           p_explore,
+                                           p_extend,
+                                           valprep,
+                                           mode,
+                                           max_length_body,
+                                           max_width)
+                                          for phi in generation_forest.get_tree(ctype).get(depth)
+                                          if phi not in mode_skip_dict[ctype]
+                                          and len(phi.body) < max_length_body),
+                                         chunksize=chunksize if chunksize > 1 else 2):
+                        E.update(psi)
 
                 for clause in generation_forest.get_tree(ctype).get(depth):
                     # clear domain of clause (which we won't need anymore) to save memory
@@ -105,14 +107,14 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
                     # prune children in last iteration
                     if depth == depths.stop-1:
                         prune_set = set()
-                        for derivative in derivatives:
+                        for derivative in E:
                             if derivative._prune is True:
                                 prune_set.add(derivative)
 
-                        derivatives -= prune_set
+                        E -= prune_set
                         npruned += len(prune_set)
 
-                print("(+{} added)".format(len(derivatives)))
+                print("(+{} added)".format(len(E)))
 
                 # remove clauses after generating children if we are
                 # not interested in previous depth
@@ -122,7 +124,7 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
 
                     npruned += n0 - generation_forest.get_tree(ctype).size
 
-                generation_forest.update_tree(ctype, derivatives, depth+1)
+                generation_forest.update_tree(ctype, E, depth+1)
 
         if len(mode_skip_dict) > 0:
             # prune unwanted clauses at depth 0 now that we don't need them anymore
@@ -136,7 +138,7 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
 
                 npruned += n0 - generation_forest.get_tree(ctype).size
 
-        duration = process_time()-t0
+        duration = time()-t0
         print('generated {} clauses in {:0.3f}s'.format(
             sum([tree.size for tree in generation_forest._trees.values()]),
             duration),
@@ -149,18 +151,44 @@ def generate_mp(nproc, g, depths, min_support, min_confidence, p_explore,
 
     return generation_forest
 
-def generate_depth_mp(inputs):
-    clause, g, generation_forest, depth, cache, min_support, min_confidence, \
-    p_explore, p_extend, valprep, mode, max_length_body, max_width = inputs
-    pendant_incidents = {assertion for assertion in clause.body.distances[depth]
-                            if type(assertion.rhs) is ObjectTypeVariable}
+def generate_candidates(phi, generation_forest, mode, depth):
+    C = set()
+    # only consider unbound object type variables as an extension of
+    # a bound entity is already implicitly included
+    I = {assertion for assertion in phi.body.distances[depth]
+         if type(assertion.rhs) is ObjectTypeVariable}
 
-    return explore(g,
-                   generation_forest,
-                   clause,
-                   pendant_incidents,
+    for a_i in I:
+        if a_i.rhs.type not in generation_forest.types():
+            # if the type lacks support, then a clause which uses it will too
+            continue
+
+        # gather all possible extensions for an entity of type t
+        for psi in generation_forest.get_tree(a_i.rhs.type).get(0):  # J
+            a_j = psi.head
+            if mode[1] == "A" and isinstance(a_j.rhs, TypeVariable):
+                # limit body extensions to Abox
+                continue
+            if mode[1] == "T" and not isinstance(a_j.rhs, TypeVariable):
+                # limit body extensions to Tbox
+                continue
+            if isinstance(a_j.rhs, MultiModalNode):
+                # don't allow multimodal nodes in body
+                continue
+
+            C.add((a_i, a_j))
+
+    return C
+
+def generate_depth_mp(inputs):
+    phi, C, depth, cache, prune, min_support, min_confidence, \
+    p_explore, p_extend, valprep, mode, max_length_body, max_width = inputs
+
+    return explore(phi,
+                   C,
                    depth,
                    cache,
+                   prune,
                    min_support,
                    min_confidence,
                    p_explore,
@@ -189,15 +217,15 @@ def init_generation_forest_mp(pool, nproc, g, class_instance_map, min_support,
             types.append(t)
 
     chunksize = ceil(len(types)/nproc)
-    for t, tree in pool.imap_unordered(init_generation_tree_mp,
-                                      ((t,
-                                        g,
-                                        class_instance_map,
-                                        min_support,
-                                        min_confidence,
-                                        mode,
-                                        multimodal) for t in types),
-                                       chunksize=chunksize if chunksize > 1 else 2):
+    for t, tree in pool.uimap(init_generation_tree_mp,
+                              ((t,
+                                g,
+                                class_instance_map,
+                                min_support,
+                                min_confidence,
+                                mode,
+                                multimodal) for t in types),
+                               chunksize=chunksize if chunksize > 1 else 2):
 
         offset = len(types)-types.index(t)
         print("\033[F"*offset, end="")
@@ -269,9 +297,9 @@ def init_generation_tree_mp(inputs):
             if not generate_Abox_heads:
                 continue
 
-            if multimodal and type(o) is Literal:
-                # skip _all_ literals if we go multimodal
-                continue
+            #if multimodal and type(o) is Literal:
+            #    # skip _all_ literals if we go multimodal
+            #    continue
 
             # create new clause
             phi = new_clause(g, parent, var, p, o,

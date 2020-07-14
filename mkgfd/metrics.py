@@ -70,8 +70,10 @@ def support_of(predicate_map,
     Optimized to minimalize the work done by continuously reducing the search
     space and by early stopping when possible
     """
+
+    assertion_key = hash(assertion)
     # no need to continue if we are a leaf (optimization)
-    if len(graph_pattern.connections[assertion]) <= 0:
+    if len(graph_pattern.connections[assertion_key]) <= 0:
         if isinstance(assertion, IdentityAssertion):
             return (len(assertion_domain), {e for e in assertion_domain})
 
@@ -133,7 +135,7 @@ def support_of(predicate_map,
 
     # update range by intersections with domains of connected assertions (optimization)
     # eg, if p(e, v) and q(.,.), check if e in domain of q
-    for connection in graph_pattern.connections[assertion]:
+    for connection in graph_pattern.connections[assertion_key]:
         assertion_range &= frozenset(predicate_map[connection.predicate]['forwards'].keys())
 
         if len(assertion_range) < min_support:
@@ -142,7 +144,7 @@ def support_of(predicate_map,
     # update range based on connected assertions' returned updated domains
     # search space is reduced after each returned update
     connection_domain = assertion_range  # only for readability
-    for connection in graph_pattern.connections[assertion]:
+    for connection in graph_pattern.connections[assertion_key]:
         support, range_update = support_of(predicate_map,
                                         object_type_map,
                                         data_type_map,
