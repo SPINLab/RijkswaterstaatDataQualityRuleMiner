@@ -1,0 +1,12 @@
+Depth	P_domain	P_range	Supp	Conf	Head	Body
+0	0.2	0.2	10	2	([SELF], http://w3.org/nationaliteit, BE)	{([SELF], rdf:type, http://example.org/Personscontract)}
+0	0.5	0.5	10	5	([SELF], http://w3.org/schip, http://example.org/SchipA)	{([SELF], rdf:type, http://example.org/Aanmonstering)}
+0	0.5	0.5	10	5	([SELF], http://w3.org/schip, http://example.org/SchipB)	{([SELF], rdf:type, http://example.org/Aanmonstering)}
+0	0.8	0.8	10	8	([SELF], http://w3.org/nationaliteit, NL)	{([SELF], rdf:type, http://example.org/Personscontract)}
+0	1.0	1.0	10	10	([SELF], http://w3.org/aanmonstering, http://example.org/Aanmonstering [ObjectType Variable])	{([SELF], rdf:type, http://example.org/Personscontract)}
+0	1.0	1.0	10	10	([SELF], http://w3.org/nationaliteit, xsd:string [DataType Variable])	{([SELF], rdf:type, http://example.org/Personscontract)}
+0	1.0	1.0	10	10	([SELF], http://w3.org/schip, http://example.org/Schip [ObjectType Variable])	{([SELF], rdf:type, http://example.org/Aanmonstering)}
+1	1.0	1.0	8	8	([SELF], http://w3.org/aanmonstering, http://example.org/Aanmonstering [ObjectType Variable])	{([SELF], rdf:type, http://example.org/Personscontract) ∧ ([SELF], http://w3.org/nationaliteit, NL)}
+2	0.4	0.4	5	2	([SELF], http://w3.org/nationaliteit, BE)	{([SELF], rdf:type, http://example.org/Personscontract) ∧ ([SELF], http://w3.org/aanmonstering, http://example.org/Aanmonstering [ObjectType Variable]) ∧ (http://example.org/Aanmonstering [ObjectType Variable], http://w3.org/schip, http://example.org/SchipA)}
+2	0.6	0.6	5	3	([SELF], http://w3.org/nationaliteit, NL)	{([SELF], rdf:type, http://example.org/Personscontract) ∧ ([SELF], http://w3.org/aanmonstering, http://example.org/Aanmonstering [ObjectType Variable]) ∧ (http://example.org/Aanmonstering [ObjectType Variable], http://w3.org/schip, http://example.org/SchipA)}
+2	1.0	1.0	5	5	([SELF], http://w3.org/nationaliteit, NL)	{([SELF], rdf:type, http://example.org/Personscontract) ∧ ([SELF], http://w3.org/aanmonstering, http://example.org/Aanmonstering [ObjectType Variable]) ∧ (http://example.org/Aanmonstering [ObjectType Variable], http://w3.org/schip, http://example.org/SchipB)}

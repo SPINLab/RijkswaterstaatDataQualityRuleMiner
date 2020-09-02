@@ -278,6 +278,7 @@ class Assertion(tuple):
     rhs = None
     _uuid = None
     _hash = None
+    _str = None
 
     def __new__(cls, subject, predicate, object):
         return super().__new__(cls, (subject, predicate, object))
@@ -287,6 +288,7 @@ class Assertion(tuple):
         self.predicate = predicate
         self.rhs = object
 
+        self._str = self._compute_str()
         self._uuid = _uuid if _uuid is not None else uuid4()
         self._hash = self._gen_hash()
 
@@ -308,6 +310,14 @@ class Assertion(tuple):
         # require unique hash to prevent overlapping dict keys
         return hash("".join([str(self.lhs), str(self.predicate),
                              str(self.rhs), str(self._uuid)]))
+
+    def _compute_str(self):
+        return "(" + ', '.join([str(self.lhs),
+                                str(self.predicate),
+                                str(self.rhs)]) + ")"
+
+    def __str__(self):
+        return self._str
 
     def __lt__(self, other):
         for a, b in [(self.lhs, other.lhs),
@@ -425,8 +435,9 @@ class ClauseBody():
         return self._str
 
     def _compute_str(self):
-        return "{" + "; ".join([str(assertion) for assertion in
-                                sorted(self.connections.keys())]) + "}"
+        return "{" + "; ".join([str(assertion) for connections in
+                                sorted(self.connections.values())
+                                for assertion in connections]) + "}"
 
 
 class GenerationForest():

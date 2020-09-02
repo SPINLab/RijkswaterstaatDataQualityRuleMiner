@@ -34,8 +34,9 @@ def pretty_clause(clause, ns_dict, label_dict):
     type_var = clause.body.identity.lhs  # or rhs
     head = pretty_assertion(clause.head, ns_dict, label_dict, type_var)
     body = " {} ".format(_CONJUNCTION).join(
-        [pretty_assertion(assertion, ns_dict, label_dict, type_var) for assertion in
-         clause.body.connections.keys() if not isinstance(assertion, IdentityAssertion)])
+        [pretty_assertion(assertion, ns_dict, label_dict, type_var) for
+         connections in clause.body.connections.values() for assertion in
+         connections if not isinstance(assertion, IdentityAssertion)])
 
     type = pretty_type(clause, ns_dict, label_dict)
     body = type if len(body) <= 0 else type + " {} ".format(_CONJUNCTION) + body
